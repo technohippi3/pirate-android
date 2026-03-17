@@ -58,3 +58,11 @@ Override at install/build time with project properties:
 - Java 17
 - Android SDK platform 36 + build-tools 36.0.0 + platform-tools
 - `ANDROID_SDK_ROOT` configured (or `ANDROID_HOME`)
+
+## Canonical upstream
+
+The canonical upstream for this repository is on Radicle:
+`rad:z38JQXCTCSreNcfi1z1d8DqMeDZnm`
+
+GitHub is maintained as a mirror for discovery and browsing.
+Please prefer Radicle for canonical history and collaboration.
