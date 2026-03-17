@@ -50,7 +50,7 @@ Override at install/build time with project properties:
 ```bash
 ./scripts/androidw.sh -PAPI_CORE_URL=https://api-core.example.com installDebug
 ./scripts/androidw.sh -PVOICE_CONTROL_PLANE_URL=https://voice.example.com installDebug
-./scripts/androidw.sh -PSUBGRAPH_MUSIC_SOCIAL_URL=https://api.goldsky.com/api/public/<project>/subgraphs/music-social-tempo/latest/gn installDebug
+./scripts/androidw.sh -PSUBGRAPH_MUSIC_SOCIAL_URL=https://api.goldsky.com/api/public/<project>/subgraphs/music-social-tempo-launch/<version>/gn installDebug
 ```
 
 ## Prerequisites

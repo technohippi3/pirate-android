@@ -2,7 +2,7 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-ANDROID_DIR="${ROOT_DIR}/apps/android"
+ANDROID_DIR="${ROOT_DIR}"
 
 if [ ! -x "${ANDROID_DIR}/gradlew" ]; then
   echo "ERROR: Gradle wrapper not found at ${ANDROID_DIR}/gradlew"

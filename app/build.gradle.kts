@@ -21,36 +21,36 @@ android {
         ?.trim()
         ?.takeIf { it.isNotBlank() }
 
-    fun goldskySubgraphUrl(slug: String): String =
-      "https://api.goldsky.com/api/public/project_cmjjtjqpvtip401u87vcp20wd/subgraphs/$slug/latest/gn"
+    fun goldskySubgraphUrl(slug: String, version: String): String =
+      "https://api.goldsky.com/api/public/project_cmjjtjqpvtip401u87vcp20wd/subgraphs/$slug/$version/gn"
 
     val subgraphMusicSocialUrl =
       projectStringProperty("SUBGRAPH_MUSIC_SOCIAL_URL")
-        ?: goldskySubgraphUrl("music-social-tempo")
+        ?: goldskySubgraphUrl("music-social-tempo-launch", "20260317-181500")
     buildConfigField("String", "SUBGRAPH_MUSIC_SOCIAL_URL", "\"$subgraphMusicSocialUrl\"")
 
     val subgraphProfilesUrl =
       projectStringProperty("SUBGRAPH_PROFILES_URL")
-        ?: goldskySubgraphUrl("profiles-tempo")
+        ?: goldskySubgraphUrl("profiles-tempo-launch", "20260317-173310")
     buildConfigField("String", "SUBGRAPH_PROFILES_URL", "\"$subgraphProfilesUrl\"")
 
     val subgraphPlaylistsUrl =
       projectStringProperty("SUBGRAPH_PLAYLISTS_URL")
-        ?: goldskySubgraphUrl("playlist-feed-tempo")
+        ?: goldskySubgraphUrl("playlist-feed-tempo-launch", "20260317-173310")
     buildConfigField("String", "SUBGRAPH_PLAYLISTS_URL", "\"$subgraphPlaylistsUrl\"")
 
     val subgraphStudyProgressUrl =
       projectStringProperty("SUBGRAPH_STUDY_PROGRESS_URL")
-        ?: goldskySubgraphUrl("study-progress-tempo")
+        ?: goldskySubgraphUrl("study-progress-tempo-launch", "20260317-181500")
     buildConfigField("String", "SUBGRAPH_STUDY_PROGRESS_URL", "\"$subgraphStudyProgressUrl\"")
 
     val subgraphFeedUrl =
       projectStringProperty("SUBGRAPH_FEED_URL")
-        ?: goldskySubgraphUrl("tiktok-feed-tempo")
+        ?: goldskySubgraphUrl("tiktok-feed-tempo-launch", "20260317-181500")
     buildConfigField("String", "SUBGRAPH_FEED_URL", "\"$subgraphFeedUrl\"")
 
     val tempoFollowV1 = projectStringProperty("TEMPO_FOLLOW_V1")
-      ?: "0x153DbEcA0CEF8563649cf475a687D14997D2c403"
+      ?: "0xB65f7DAD7278ce2b9c14De2b68a3dBc8964F208c"
     buildConfigField("String", "TEMPO_FOLLOW_V1", "\"$tempoFollowV1\"")
 
     val tempoFeedV1 = projectStringProperty("TEMPO_FEED_V1")
@@ -58,23 +58,23 @@ android {
     buildConfigField("String", "TEMPO_FEED_V1", "\"$tempoFeedV1\"")
 
     val tempoFeedV2 = projectStringProperty("TEMPO_FEED_V2")
-      ?: "0xc5b49177c5631bb8323fb319203efd08ed892757"
+      ?: "0x7208221F61463D7f430E5bCe9935F0c756D4818F"
     buildConfigField("String", "TEMPO_FEED_V2", "\"$tempoFeedV2\"")
 
     val tempoPublishCoordinator = projectStringProperty("TEMPO_PUBLISH_COORDINATOR")
-      ?: "0x0000000000000000000000000000000000000000"
+      ?: "0xE41e8818E667e85C1697261a2c991c862b52de00"
     buildConfigField("String", "TEMPO_PUBLISH_COORDINATOR", "\"$tempoPublishCoordinator\"")
 
     val tempoCanonicalLyricsRegistry = projectStringProperty("TEMPO_CANONICAL_LYRICS_REGISTRY")
-      ?: "0x7e09f203c20186e6a35d5b683de94aa0f8514e71"
+      ?: "0xEf17E6EA6Ddb92C8BAEf0920728e4a320e60c3d0"
     buildConfigField("String", "TEMPO_CANONICAL_LYRICS_REGISTRY", "\"$tempoCanonicalLyricsRegistry\"")
 
     val tempoTrackPresentationRegistry = projectStringProperty("TEMPO_TRACK_PRESENTATION_REGISTRY")
-      ?: "0x0000000000000000000000000000000000000000"
+      ?: "0x77cF07239e859Dd0E91558F9B256453Df7F31E04"
     buildConfigField("String", "TEMPO_TRACK_PRESENTATION_REGISTRY", "\"$tempoTrackPresentationRegistry\"")
 
     val tempoTrackPresentationDelegate = projectStringProperty("TEMPO_TRACK_PRESENTATION_DELEGATE")
-      ?: "0x0000000000000000000000000000000000000000"
+      ?: "0x39839FB90820846e020EAdBFA9af626163274e30"
     buildConfigField("String", "TEMPO_TRACK_PRESENTATION_DELEGATE", "\"$tempoTrackPresentationDelegate\"")
 
     val apiCoreUrl =
