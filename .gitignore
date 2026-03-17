@@ -1,0 +1,10 @@
+.gradle/
+.gradle-user-home/
+.idea/
+.kotlin/
+build/
+local.properties
+**/build/
+app/src/main/jniLibs/
+*.iml
+

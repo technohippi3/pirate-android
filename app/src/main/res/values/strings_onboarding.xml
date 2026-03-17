@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="common_continue">Continue</string>
+  <string name="common_retry">Retry</string>
+  <string name="common_remove">Remove</string>
+
+  <string name="onboarding_previous_screen">Previous screen</string>
+  <string name="onboarding_status_preparing">Getting things ready...</string>
+  <string name="onboarding_status_confirm_continue">Confirm to continue</string>
+  <string name="onboarding_status_one_more_confirmation">One more confirmation...</string>
+  <string name="onboarding_status_finishing_up">Finishing up...</string>
+  <string name="onboarding_status_session_setup_failed">Session setup failed. Please retry.</string>
+
+  <string name="onboarding_name_title">Claim your name</string>
+  <string name="onboarding_name_subtitle">This will be your identity on Pirate</string>
+  <string name="onboarding_name_username_label">Username</string>
+  <string name="onboarding_name_checking">Checking...</string>
+  <string name="onboarding_name_available">Available</string>
+  <string name="onboarding_name_claim_button">Claim Name</string>
+  <string name="onboarding_name_error_min_chars">Name must be at least %1$d characters</string>
+  <string name="onboarding_name_error_max_chars">Name must be 32 characters or less</string>
+  <string name="onboarding_name_error_taken">Name is taken</string>
+  <string name="onboarding_name_error_check_failed">Could not check availability</string>
+  <string name="onboarding_name_error_registration_failed">Registration failed</string>
+  <string name="onboarding_name_error_tempo_required">Tempo account required for onboarding.</string>
+
+  <string name="onboarding_age_title">How old are you?</string>
+  <string name="onboarding_age_label">Age</string>
+  <string name="onboarding_age_error_valid_number">Enter a valid number</string>
+  <string name="onboarding_age_error_minimum">Must be at least 13</string>
+  <string name="onboarding_age_error_invalid_age">Enter a valid age</string>
+
+  <string name="onboarding_gender_title">What is your gender?</string>
+  <string name="onboarding_gender_woman">Woman</string>
+  <string name="onboarding_gender_man">Man</string>
+  <string name="onboarding_gender_nonbinary">Non-binary</string>
+  <string name="onboarding_gender_transwoman">Trans Woman</string>
+  <string name="onboarding_gender_transman">Trans Man</string>
+  <string name="onboarding_gender_intersex">Intersex</string>
+  <string name="onboarding_gender_other">Other</string>
+
+  <string name="onboarding_location_title">Where are you?</string>
+  <string name="onboarding_location_label">Location</string>
+  <string name="onboarding_location_placeholder">e.g. Tokyo, New York, London</string>
+  <string name="onboarding_location_openstreetmap_attribution">© OpenStreetMap contributors</string>
+
+  <string name="onboarding_languages_title">Languages</string>
+  <string name="onboarding_languages_subtitle">What languages do you speak?</string>
+  <string name="onboarding_languages_native_title">Native languages</string>
+  <string name="onboarding_languages_learning_title">Learning</string>
+  <string name="onboarding_languages_added_count">%1$d added</string>
+  <string name="onboarding_languages_add_native_label">Add native language</string>
+  <string name="onboarding_languages_language_label">Language</string>
+  <string name="onboarding_languages_level_label">Level</string>
+  <string name="onboarding_languages_remove_content_description">Remove language</string>
+
+  <string name="onboarding_music_title">Pick artists you like</string>
+  <string name="onboarding_music_remaining">Pick at least %1$d more</string>
+  <string name="onboarding_music_selected_count">%1$d selected</string>
+
+  <string name="onboarding_avatar_title">Add a profile photo</string>
+  <string name="onboarding_avatar_subtitle">Anime or illustrated avatars preferred</string>
+  <string name="onboarding_avatar_error_cannot_open_image">Cannot open image</string>
+  <string name="onboarding_avatar_error_cannot_decode_image">Cannot decode image</string>
+  <string name="onboarding_avatar_error_too_large">Image is too large (%1$s MB). Please use an image under 2 MB.</string>
+  <string name="onboarding_avatar_error_process_failed">Failed to process image</string>
+  <string name="onboarding_avatar_preview">Avatar preview</string>
+  <string name="onboarding_avatar_pick_photo">Pick photo</string>
+
+  <string name="onboarding_done_icon_description">Done</string>
+  <string name="onboarding_done_title">You are all set!</string>
+  <string name="onboarding_done_welcome_named">Welcome to Pirate, %1$s</string>
+  <string name="onboarding_done_welcome_generic">Welcome to Pirate</string>
+
+  <string name="onboarding_error_save_profile">Failed to save profile</string>
+  <string name="onboarding_error_music_save">Music save failed</string>
+  <string name="onboarding_error_avatar_upload">Avatar upload failed</string>
+  <string name="onboarding_error_finish">Failed to finish onboarding</string>
+</resources>

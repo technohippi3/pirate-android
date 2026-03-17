@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="profile_tab_posts">帖子</string>
+  <string name="profile_tab_published_songs">已发布歌曲</string>
+  <string name="profile_tab_scrobbles">Scrobbles</string>
+  <string name="profile_tab_schedule">日程</string>
+  <string name="profile_tab_about">关于</string>
+  <string name="profile_tab_coming_soon">%1$s 即将推出</string>
+  <string name="profile_settings_title">设置</string>
+  <string name="profile_settings_wallet_address">钱包地址</string>
+  <string name="profile_settings_copy">复制</string>
+  <string name="profile_settings_copied">已复制！</string>
+  <string name="profile_settings_app">应用</string>
+  <string name="profile_settings_app_version">版本 %1$s</string>
+  <string name="profile_settings_sign_out">退出登录</string>
+  <string name="profile_follow_contract_not_configured">关注合约未配置</string>
+  <string name="profile_follow_unavailable">当前无法关注</string>
+  <string name="profile_follow_transaction_failed">关注交易失败</string>
+</resources>

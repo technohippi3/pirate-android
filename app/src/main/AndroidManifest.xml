@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+  <uses-permission android:name="android.permission.INTERNET" />
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+  <uses-permission android:name="android.permission.CAMERA" />
+  <uses-permission android:name="android.permission.RECORD_AUDIO" />
+  <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+  <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
+  <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
+  <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
+  <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+  <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+  <application
+    android:allowBackup="true"
+    android:label="@string/app_name"
+    android:icon="@android:drawable/sym_def_app_icon"
+    android:supportsRtl="true"
+    android:theme="@style/Theme.Pirate">
+
+    <activity
+      android:name=".MainActivity"
+      android:exported="true"
+      android:launchMode="singleTask"
+      android:windowSoftInputMode="adjustResize">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN" />
+        <category android:name="android.intent.category.LAUNCHER" />
+      </intent-filter>
+
+      <!-- Self.xyz verification callback -->
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="heaven" android:host="self" />
+        <data android:scheme="pirate" android:host="self" />
+      </intent-filter>
+    </activity>
+
+    <!-- Media playback foreground service -->
+    <service
+      android:name=".player.PlaybackService"
+      android:exported="false"
+      android:foregroundServiceType="mediaPlayback" />
+
+    <!-- Notification listener needed for third-party media session access (Spotify) -->
+    <service
+      android:name=".scrobble.SpotifyNotificationListenerService"
+      android:label="@string/app_name"
+      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.service.notification.NotificationListenerService" />
+      </intent-filter>
+    </service>
+
+    <!-- Now Playing home-screen widget -->
+    <receiver
+      android:name=".widget.NowPlayingWidgetReceiver"
+      android:exported="true">
+      <intent-filter>
+        <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+      </intent-filter>
+      <meta-data
+        android:name="android.appwidget.provider"
+        android:resource="@xml/now_playing_widget_info" />
+    </receiver>
+
+    <!-- Widget button actions -->
+    <receiver
+      android:name=".widget.NowPlayingWidgetActionReceiver"
+      android:exported="false">
+      <intent-filter>
+        <action android:name="com.pirate.app.WIDGET_PLAY_PAUSE" />
+        <action android:name="com.pirate.app.WIDGET_SKIP_NEXT" />
+      </intent-filter>
+    </receiver>
+
+  </application>
+</manifest>

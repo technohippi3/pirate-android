@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="common_continue">继续</string>
+  <string name="common_retry">重试</string>
+  <string name="common_remove">移除</string>
+
+  <string name="onboarding_previous_screen">上一步</string>
+  <string name="onboarding_status_preparing">正在准备...</string>
+  <string name="onboarding_status_confirm_continue">请确认以继续</string>
+  <string name="onboarding_status_one_more_confirmation">再确认一次...</string>
+  <string name="onboarding_status_finishing_up">即将完成...</string>
+  <string name="onboarding_status_session_setup_failed">会话设置失败，请重试。</string>
+
+  <string name="onboarding_name_title">认领你的名字</string>
+  <string name="onboarding_name_subtitle">这将成为你在 Pirate 上的身份</string>
+  <string name="onboarding_name_username_label">用户名</string>
+  <string name="onboarding_name_checking">检查中...</string>
+  <string name="onboarding_name_available">可用</string>
+  <string name="onboarding_name_claim_button">认领名称</string>
+  <string name="onboarding_name_error_min_chars">名称至少需要 %1$d 个字符</string>
+  <string name="onboarding_name_error_max_chars">名称不能超过 32 个字符</string>
+  <string name="onboarding_name_error_taken">该名称已被占用</string>
+  <string name="onboarding_name_error_check_failed">无法检查可用性</string>
+  <string name="onboarding_name_error_registration_failed">注册失败</string>
+  <string name="onboarding_name_error_tempo_required">需要 Tempo 账户才能完成引导。</string>
+
+  <string name="onboarding_age_title">你多大了？</string>
+  <string name="onboarding_age_label">年龄</string>
+  <string name="onboarding_age_error_valid_number">请输入有效数字</string>
+  <string name="onboarding_age_error_minimum">年龄必须至少为 13 岁</string>
+  <string name="onboarding_age_error_invalid_age">请输入有效年龄</string>
+
+  <string name="onboarding_gender_title">你的性别是什么？</string>
+  <string name="onboarding_gender_woman">女</string>
+  <string name="onboarding_gender_man">男</string>
+  <string name="onboarding_gender_nonbinary">非二元</string>
+  <string name="onboarding_gender_transwoman">跨性别女性</string>
+  <string name="onboarding_gender_transman">跨性别男性</string>
+  <string name="onboarding_gender_intersex">双性</string>
+  <string name="onboarding_gender_other">其他</string>
+
+  <string name="onboarding_location_title">你在哪里？</string>
+  <string name="onboarding_location_label">位置</string>
+  <string name="onboarding_location_placeholder">例如：东京、纽约、伦敦</string>
+  <string name="onboarding_location_openstreetmap_attribution">© OpenStreetMap contributors</string>
+
+  <string name="onboarding_languages_title">语言</string>
+  <string name="onboarding_languages_subtitle">你会说哪些语言？</string>
+  <string name="onboarding_languages_native_title">母语</string>
+  <string name="onboarding_languages_learning_title">学习中</string>
+  <string name="onboarding_languages_added_count">已添加 %1$d 项</string>
+  <string name="onboarding_languages_add_native_label">添加母语</string>
+  <string name="onboarding_languages_language_label">语言</string>
+  <string name="onboarding_languages_level_label">等级</string>
+  <string name="onboarding_languages_remove_content_description">移除语言</string>
+
+  <string name="onboarding_music_title">选择你喜欢的歌手</string>
+  <string name="onboarding_music_remaining">至少再选 %1$d 位</string>
+  <string name="onboarding_music_selected_count">已选 %1$d 位</string>
+
+  <string name="onboarding_avatar_title">添加头像</string>
+  <string name="onboarding_avatar_subtitle">建议使用动漫或插画头像</string>
+  <string name="onboarding_avatar_error_cannot_open_image">无法打开图片</string>
+  <string name="onboarding_avatar_error_cannot_decode_image">无法解码图片</string>
+  <string name="onboarding_avatar_error_too_large">图片过大（%1$s MB）。请选择小于 2 MB 的图片。</string>
+  <string name="onboarding_avatar_error_process_failed">处理图片失败</string>
+  <string name="onboarding_avatar_preview">头像预览</string>
+  <string name="onboarding_avatar_pick_photo">选择照片</string>
+
+  <string name="onboarding_done_icon_description">完成</string>
+  <string name="onboarding_done_title">一切就绪！</string>
+  <string name="onboarding_done_welcome_named">欢迎来到 Pirate，%1$s</string>
+  <string name="onboarding_done_welcome_generic">欢迎来到 Pirate</string>
+
+  <string name="onboarding_error_save_profile">保存资料失败</string>
+  <string name="onboarding_error_music_save">保存音乐偏好失败</string>
+  <string name="onboarding_error_avatar_upload">上传头像失败</string>
+  <string name="onboarding_error_finish">无法完成引导</string>
+</resources>

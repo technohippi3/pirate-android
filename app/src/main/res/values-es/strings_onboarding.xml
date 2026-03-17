@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="common_continue">Continuar</string>
+  <string name="common_retry">Reintentar</string>
+  <string name="common_remove">Quitar</string>
+
+  <string name="onboarding_previous_screen">Pantalla anterior</string>
+  <string name="onboarding_status_preparing">Preparando todo...</string>
+  <string name="onboarding_status_confirm_continue">Confirma para continuar</string>
+  <string name="onboarding_status_one_more_confirmation">Una confirmación más...</string>
+  <string name="onboarding_status_finishing_up">Terminando...</string>
+  <string name="onboarding_status_session_setup_failed">La configuración de la sesión falló. Vuelve a intentarlo.</string>
+
+  <string name="onboarding_name_title">Elige tu nombre</string>
+  <string name="onboarding_name_subtitle">Esta será tu identidad en Pirate</string>
+  <string name="onboarding_name_username_label">Nombre de usuario</string>
+  <string name="onboarding_name_checking">Comprobando...</string>
+  <string name="onboarding_name_available">Disponible</string>
+  <string name="onboarding_name_claim_button">Registrar nombre</string>
+  <string name="onboarding_name_error_min_chars">El nombre debe tener al menos %1$d caracteres</string>
+  <string name="onboarding_name_error_max_chars">El nombre debe tener como máximo 32 caracteres</string>
+  <string name="onboarding_name_error_taken">Ese nombre ya está en uso</string>
+  <string name="onboarding_name_error_check_failed">No se pudo comprobar la disponibilidad</string>
+  <string name="onboarding_name_error_registration_failed">El registro falló</string>
+  <string name="onboarding_name_error_tempo_required">Se requiere una cuenta de Tempo para el onboarding.</string>
+
+  <string name="onboarding_age_title">¿Cuántos años tienes?</string>
+  <string name="onboarding_age_label">Edad</string>
+  <string name="onboarding_age_error_valid_number">Introduce un número válido</string>
+  <string name="onboarding_age_error_minimum">Debes tener al menos 13 años</string>
+  <string name="onboarding_age_error_invalid_age">Introduce una edad válida</string>
+
+  <string name="onboarding_gender_title">¿Cuál es tu género?</string>
+  <string name="onboarding_gender_woman">Mujer</string>
+  <string name="onboarding_gender_man">Hombre</string>
+  <string name="onboarding_gender_nonbinary">No binario</string>
+  <string name="onboarding_gender_transwoman">Mujer trans</string>
+  <string name="onboarding_gender_transman">Hombre trans</string>
+  <string name="onboarding_gender_intersex">Intersexual</string>
+  <string name="onboarding_gender_other">Otro</string>
+
+  <string name="onboarding_location_title">¿Dónde estás?</string>
+  <string name="onboarding_location_label">Ubicación</string>
+  <string name="onboarding_location_placeholder">p. ej. Tokio, Nueva York, Londres</string>
+  <string name="onboarding_location_openstreetmap_attribution">© OpenStreetMap contributors</string>
+
+  <string name="onboarding_languages_title">Idiomas</string>
+  <string name="onboarding_languages_subtitle">¿Qué idiomas hablas?</string>
+  <string name="onboarding_languages_native_title">Idiomas nativos</string>
+  <string name="onboarding_languages_learning_title">Aprendiendo</string>
+  <string name="onboarding_languages_added_count">%1$d añadidos</string>
+  <string name="onboarding_languages_add_native_label">Añadir idioma nativo</string>
+  <string name="onboarding_languages_language_label">Idioma</string>
+  <string name="onboarding_languages_level_label">Nivel</string>
+  <string name="onboarding_languages_remove_content_description">Quitar idioma</string>
+
+  <string name="onboarding_music_title">Elige artistas que te gusten</string>
+  <string name="onboarding_music_remaining">Elige al menos %1$d más</string>
+  <string name="onboarding_music_selected_count">%1$d seleccionados</string>
+
+  <string name="onboarding_avatar_title">Añade una foto de perfil</string>
+  <string name="onboarding_avatar_subtitle">Preferimos avatares de anime o ilustrados</string>
+  <string name="onboarding_avatar_error_cannot_open_image">No se puede abrir la imagen</string>
+  <string name="onboarding_avatar_error_cannot_decode_image">No se puede decodificar la imagen</string>
+  <string name="onboarding_avatar_error_too_large">La imagen es demasiado grande (%1$s MB). Usa una imagen de menos de 2 MB.</string>
+  <string name="onboarding_avatar_error_process_failed">No se pudo procesar la imagen</string>
+  <string name="onboarding_avatar_preview">Vista previa del avatar</string>
+  <string name="onboarding_avatar_pick_photo">Elegir foto</string>
+
+  <string name="onboarding_done_icon_description">Hecho</string>
+  <string name="onboarding_done_title">¡Todo listo!</string>
+  <string name="onboarding_done_welcome_named">Te damos la bienvenida a Pirate, %1$s</string>
+  <string name="onboarding_done_welcome_generic">Te damos la bienvenida a Pirate</string>
+
+  <string name="onboarding_error_save_profile">No se pudo guardar el perfil</string>
+  <string name="onboarding_error_music_save">No se pudo guardar la música</string>
+  <string name="onboarding_error_avatar_upload">No se pudo subir el avatar</string>
+  <string name="onboarding_error_finish">No se pudo completar el onboarding</string>
+</resources>

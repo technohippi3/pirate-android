@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="profile_tab_posts">Posts</string>
+  <string name="profile_tab_published_songs">Published songs</string>
+  <string name="profile_tab_scrobbles">Scrobbles</string>
+  <string name="profile_tab_schedule">Schedule</string>
+  <string name="profile_tab_about">About</string>
+  <string name="profile_tab_coming_soon">%1$s coming soon</string>
+  <string name="profile_settings_title">Settings</string>
+  <string name="profile_settings_wallet_address">Wallet Address</string>
+  <string name="profile_settings_copy">Copy</string>
+  <string name="profile_settings_copied">Copied!</string>
+  <string name="profile_settings_app">App</string>
+  <string name="profile_settings_app_version">Version %1$s</string>
+  <string name="profile_settings_sign_out">Sign Out</string>
+  <string name="profile_follow_contract_not_configured">Follow contract not configured</string>
+  <string name="profile_follow_unavailable">Follow unavailable</string>
+  <string name="profile_follow_transaction_failed">Follow transaction failed</string>
+</resources>

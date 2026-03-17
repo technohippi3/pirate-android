@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="profile_tab_posts">Publicaciones</string>
+  <string name="profile_tab_published_songs">Canciones publicadas</string>
+  <string name="profile_tab_scrobbles">Scrobbles</string>
+  <string name="profile_tab_schedule">Agenda</string>
+  <string name="profile_tab_about">Acerca de</string>
+  <string name="profile_tab_coming_soon">%1$s próximamente</string>
+  <string name="profile_settings_title">Configuración</string>
+  <string name="profile_settings_wallet_address">Dirección de la cartera</string>
+  <string name="profile_settings_copy">Copiar</string>
+  <string name="profile_settings_copied">¡Copiado!</string>
+  <string name="profile_settings_app">Aplicación</string>
+  <string name="profile_settings_app_version">Versión %1$s</string>
+  <string name="profile_settings_sign_out">Cerrar sesión</string>
+  <string name="profile_follow_contract_not_configured">El contrato de seguimiento no está configurado</string>
+  <string name="profile_follow_unavailable">Seguir no está disponible</string>
+  <string name="profile_follow_transaction_failed">La transacción de seguimiento falló</string>
+</resources>

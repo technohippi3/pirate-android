@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="app_name">Pirate</string>
+  <string name="widget_description">Shows current track with playback controls</string>
+  <string name="assistant_intro_message">Hey! I\'m Violet. You can think of me as your language penpal, lifecoach, or just a friend! I have context of what songs you like and what you\'re studying!
+
+You can message me 10 times per day for free, or 30 if you verify! You can also buy credits if you want more.</string>
+</resources>
