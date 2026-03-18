@@ -249,7 +249,11 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
     drawerState.open()
   }
 
-  suspend fun resolvePostAuthDestination(userAddress: String, alreadyResolving: Boolean = false) {
+  suspend fun resolvePostAuthDestination(
+    userAddress: String,
+    alreadyResolving: Boolean = false,
+    onboardingOverride: OnboardingStep? = null,
+  ) {
     if (!alreadyResolving) {
       navController.navigate(PirateRoute.AuthResolving.route) {
         popUpTo(navController.graph.startDestinationId) { saveState = true }
@@ -257,7 +261,7 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
         restoreState = true
       }
     }
-    val step = runCatching { checkOnboardingStatus(appContext, userAddress) }.getOrNull()
+    val step = onboardingOverride ?: runCatching { checkOnboardingStatus(appContext, userAddress) }.getOrNull()
     if (step != null) {
       onboardingInitialStep = step
       navController.navigate(PirateRoute.Onboarding.route) {
@@ -320,8 +324,12 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
         )
       authState = nextState
       PirateAuthUiState.save(appContext, nextState)
-      snackbarHostState.showSnackbar("Signed up with passkey.")
-      resolvePostAuthDestination(account.address, alreadyResolving = true)
+      scope.launch { snackbarHostState.showSnackbar("Signed up with passkey.") }
+      resolvePostAuthDestination(
+        account.address,
+        alreadyResolving = true,
+        onboardingOverride = OnboardingStep.NAME,
+      )
     }
   }
 
@@ -386,7 +394,7 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
         )
       authState = nextState
       PirateAuthUiState.save(appContext, nextState)
-      snackbarHostState.showSnackbar("Logged in with passkey.")
+      scope.launch { snackbarHostState.showSnackbar("Logged in with passkey.") }
       resolvePostAuthDestination(account.address, alreadyResolving = true)
     }
   }
