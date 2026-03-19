@@ -52,6 +52,40 @@ object SongPublishService {
   private const val TRACK_PRESENTATION_DELEGATE_TTL_SECONDS = 14L * 24L * 60L * 60L
   private const val LYRICS_READY_POLL_MAX_RETRIES = 8
   private const val LYRICS_READY_POLL_DELAY_MS = 3_000L
+  private const val DONATION_TARGET_CHAIN_ID = 84532
+  private const val DONATION_TEST_RECIPIENT = "0x39839FB90820846e020EAdBFA9af626163274e30"
+
+  data class FeaturedDonationOrg(
+    val slug: String,
+    val name: String,
+    val orgId: String,
+    val destinationChainId: Int,
+    val destinationRecipient: String,
+  )
+
+  val FEATURED_DONATION_ORGS = listOf(
+    FeaturedDonationOrg(
+      slug = "internet-archive",
+      name = "Internet Archive",
+      orgId = "dd7abaa8-82a1-4b1f-ae05-b54c62cee707",
+      destinationChainId = DONATION_TARGET_CHAIN_ID,
+      destinationRecipient = DONATION_TEST_RECIPIENT,
+    ),
+    FeaturedDonationOrg(
+      slug = "doctors-without-borders",
+      name = "Doctors Without Borders",
+      orgId = "04a7653e-5be6-480e-8f4b-cb92f72ccf22",
+      destinationChainId = DONATION_TARGET_CHAIN_ID,
+      destinationRecipient = DONATION_TEST_RECIPIENT,
+    ),
+    FeaturedDonationOrg(
+      slug = "watsi",
+      name = "WATSI",
+      orgId = "663170d4-6242-45cd-8b37-aa187bbaf495",
+      destinationChainId = DONATION_TARGET_CHAIN_ID,
+      destinationRecipient = DONATION_TEST_RECIPIENT,
+    ),
+  )
 
   data class SongFormData(
     val title: String = "",
@@ -67,6 +101,13 @@ object SongPublishService {
     val canvasUri: Uri? = null,
     val license: String = "non-commercial", // "non-commercial" | "commercial-use" | "commercial-remix"
     val revShare: Int = 10,
+    val donationEnabled: Boolean = false,
+    val donationOrgId: String = "",
+    val donationOrgName: String = "",
+    val donationRecipient: String = "",
+    val donationChainId: Int = DONATION_TARGET_CHAIN_ID,
+    val donationSharePercent: Int = 10,
+    val donationCompliant: Boolean = false,
     val attestation: Boolean = false,
     val purchasePriceUsd: String = "1",
     val openEdition: Boolean = true,
@@ -85,6 +126,33 @@ object SongPublishService {
     val coverCid: String? = null,
     val reusedExistingRelease: Boolean = false,
   )
+
+  fun buildDonationPolicy(formData: SongFormData): JSONObject? {
+    if (!formData.donationEnabled) return null
+    val orgId = formData.donationOrgId.trim()
+    val orgName = formData.donationOrgName.trim()
+    val recipient = formData.donationRecipient.trim()
+    if (
+      orgId.isBlank() ||
+      orgName.isBlank() ||
+      !formData.donationCompliant ||
+      formData.donationChainId != DONATION_TARGET_CHAIN_ID ||
+      !recipient.matches(Regex("^0x[a-fA-F0-9]{40}$")) ||
+      formData.donationSharePercent !in 1..50
+    ) {
+      return null
+    }
+    return JSONObject().apply {
+      put("provider", "endaoment")
+      put("orgId", orgId)
+      put("orgName", orgName)
+      put("isCompliant", true)
+      put("destinationChainId", formData.donationChainId)
+      put("destinationToken", "USDC")
+      put("destinationRecipient", recipient)
+      put("sharePercent", formData.donationSharePercent)
+    }
+  }
 
   suspend fun publish(
     context: Context,
@@ -408,6 +476,7 @@ object SongPublishService {
         nftMetadataHash = nftMetadataHash,
         license = formData.license,
         commercialRevShare = formData.revShare,
+        donationPolicy = buildDonationPolicy(formData),
         defaultMintingFee = "0",
         sessionKey = publishSessionKey,
       )
@@ -426,6 +495,7 @@ object SongPublishService {
           nftMetadataHash = nftMetadataHash,
           license = formData.license,
           commercialRevShare = formData.revShare,
+          donationPolicy = buildDonationPolicy(formData),
           defaultMintingFee = "0",
           sessionKey = publishSessionKey,
           storyIntentOperationId = operationId,

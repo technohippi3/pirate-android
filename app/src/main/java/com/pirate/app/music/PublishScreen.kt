@@ -74,7 +74,7 @@ import kotlinx.coroutines.withContext
 
 // ── Step enum ───────────────────────────────────────────────────
 
-private enum class PublishStep { SONG, PREVIEW, DETAILS, LICENSE, SALES, FINALIZE, PUBLISHING, SUCCESS, ERROR }
+private enum class PublishStep { SONG, PREVIEW, DETAILS, LICENSE, DONATION, SALES, FINALIZE, PUBLISHING, SUCCESS, ERROR }
 
 private data class PublishFooterAction(
   val label: String,
@@ -368,13 +368,15 @@ private fun PublishFormContent(
   val purchasePriceUnits = SongPublishService.purchasePriceUnitsOrNull(formData.purchasePriceUsd)
   val maxSupplyValue = formData.maxSupply.trim().toIntOrNull()?.takeIf { it in 1..1_000_000 }
   val salesStepValid = purchasePriceUnits != null && (formData.openEdition || maxSupplyValue != null)
-  val finalizeStepValid = formData.attestation && salesStepValid
+  val donationStepValid = !formData.donationEnabled || SongPublishService.buildDonationPolicy(formData) != null
+  val finalizeStepValid = formData.attestation && salesStepValid && donationStepValid
   val wizardSteps =
     listOf(
       PublishStep.SONG,
       PublishStep.PREVIEW,
       PublishStep.DETAILS,
       PublishStep.LICENSE,
+      PublishStep.DONATION,
       PublishStep.SALES,
       PublishStep.FINALIZE,
     )
@@ -393,7 +395,8 @@ private fun PublishFormContent(
       PublishStep.SONG -> PublishFooterAction(label = "Next", enabled = songStepValid) { step = PublishStep.PREVIEW }
       PublishStep.PREVIEW -> PublishFooterAction(label = "Next", enabled = previewStepValid) { step = PublishStep.DETAILS }
       PublishStep.DETAILS -> PublishFooterAction(label = "Next", enabled = detailsStepValid) { step = PublishStep.LICENSE }
-      PublishStep.LICENSE -> PublishFooterAction(label = "Next") { step = PublishStep.SALES }
+      PublishStep.LICENSE -> PublishFooterAction(label = "Next") { step = PublishStep.DONATION }
+      PublishStep.DONATION -> PublishFooterAction(label = "Next", enabled = donationStepValid) { step = PublishStep.SALES }
       PublishStep.SALES -> PublishFooterAction(label = "Next", enabled = salesStepValid) { step = PublishStep.FINALIZE }
       PublishStep.FINALIZE -> PublishFooterAction(label = "Publish", enabled = finalizeStepValid) { doPublish() }
       PublishStep.SUCCESS ->
@@ -427,7 +430,8 @@ private fun PublishFormContent(
                 PublishStep.PREVIEW -> step = PublishStep.SONG
                 PublishStep.DETAILS -> step = PublishStep.PREVIEW
                 PublishStep.LICENSE -> step = PublishStep.DETAILS
-                PublishStep.SALES -> step = PublishStep.LICENSE
+                PublishStep.DONATION -> step = PublishStep.LICENSE
+                PublishStep.SALES -> step = PublishStep.DONATION
                 PublishStep.FINALIZE -> onClose()
                 PublishStep.PUBLISHING -> onClose()
                 PublishStep.SUCCESS -> onClose()
@@ -533,6 +537,11 @@ private fun PublishFormContent(
         )
 
         PublishStep.LICENSE -> LicenseStep(
+          formData = formData,
+          onFormChange = { formData = it },
+        )
+
+        PublishStep.DONATION -> DonationStep(
           formData = formData,
           onFormChange = { formData = it },
         )

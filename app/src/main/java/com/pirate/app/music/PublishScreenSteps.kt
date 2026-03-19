@@ -10,6 +10,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,6 +21,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.text.KeyboardOptions
@@ -47,6 +49,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
@@ -576,7 +579,134 @@ private fun LicenseOptionCard(
   }
 }
 
-// ── Step 6: Sales ─────────────────────────────────────────────────
+// ── Step 6: Donation ──────────────────────────────────────────────
+
+@Composable
+internal fun DonationStep(
+  formData: SongPublishService.SongFormData,
+  onFormChange: (SongPublishService.SongFormData) -> Unit,
+) {
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .verticalScroll(rememberScrollState())
+      .padding(16.dp),
+    verticalArrangement = Arrangement.spacedBy(16.dp),
+  ) {
+    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+      val cardWidth = ((maxWidth - 16.dp) / 3f).coerceAtLeast(92.dp)
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        SongPublishService.FEATURED_DONATION_ORGS.forEach { org ->
+          val selected = formData.donationEnabled && formData.donationOrgId == org.orgId
+          Column(
+            modifier = Modifier
+              .width(cardWidth)
+              .clip(RoundedCornerShape(16.dp))
+              .background(
+                if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+              )
+              .border(
+                width = 1.dp,
+                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
+                shape = RoundedCornerShape(16.dp),
+              )
+              .clickable {
+                onFormChange(
+                  formData.copy(
+                    donationEnabled = true,
+                    donationOrgId = org.orgId,
+                    donationOrgName = org.name,
+                    donationRecipient = org.destinationRecipient,
+                    donationChainId = org.destinationChainId,
+                    donationCompliant = true,
+                  ),
+                )
+              }
+              .padding(horizontal = 10.dp, vertical = 14.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(10.dp),
+          ) {
+            Box(
+              modifier = Modifier
+                .size(64.dp)
+                .clip(CircleShape)
+                .background(Color.White),
+              contentAlignment = Alignment.Center,
+            ) {
+              Text(
+                text = org.name.split(" ").mapNotNull { it.firstOrNull()?.uppercaseChar()?.toString() }.take(2).joinToString(""),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.Black,
+              )
+            }
+            Text(
+              text = org.name,
+              style = MaterialTheme.typography.bodySmall,
+              textAlign = TextAlign.Center,
+              maxLines = 2,
+              overflow = TextOverflow.Ellipsis,
+            )
+          }
+        }
+      }
+    }
+
+    if (formData.donationEnabled) {
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .clip(RoundedCornerShape(16.dp))
+          .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
+          .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text("Amount", style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
+          Text("${formData.donationSharePercent}%", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.SemiBold)
+        }
+        Slider(
+          value = formData.donationSharePercent.toFloat(),
+          onValueChange = {
+            onFormChange(formData.copy(donationSharePercent = it.toInt().coerceIn(1, 50)))
+          },
+          valueRange = 1f..50f,
+          steps = 48,
+        )
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.End,
+        ) {
+          PirateOutlinedButton(
+            onClick = {
+              onFormChange(
+                formData.copy(
+                  donationEnabled = false,
+                  donationOrgId = "",
+                  donationOrgName = "",
+                  donationRecipient = "",
+                  donationCompliant = false,
+                ),
+              )
+            },
+          ) {
+            Text("Skip")
+          }
+        }
+      }
+    }
+  }
+}
+
+// ── Step 7: Sales ─────────────────────────────────────────────────
 
 @Composable
 internal fun SalesStep(
@@ -650,7 +780,7 @@ internal fun SalesStep(
   }
 }
 
-// ── Step 7: Finalize ──────────────────────────────────────────────
+// ── Step 8: Finalize ──────────────────────────────────────────────
 
 @Composable
 internal fun FinalizeStep(
@@ -743,6 +873,9 @@ internal fun FinalizeStep(
       FinalizeRow(label = "License", value = licenseLabel)
       if (formData.license != "non-commercial") {
         FinalizeRow(label = "Revenue Share", value = "${formData.revShare}%")
+      }
+      if (formData.donationEnabled && formData.donationOrgName.isNotBlank()) {
+        FinalizeRow(label = "Donation", value = "${formData.donationSharePercent}% to ${formData.donationOrgName}")
       }
       FinalizeRow(label = "Price", value = priceLabel)
       FinalizeRow(label = "Edition", value = editionLabel)
