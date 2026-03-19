@@ -1,12 +1,38 @@
+import java.util.Properties
+
 plugins {
   id("com.android.application")
   id("org.jetbrains.kotlin.android")
   id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val signingProps = Properties().apply {
+  val propsFile = rootProject.file("signing.properties")
+  if (propsFile.exists()) {
+    propsFile.inputStream().use(::load)
+  }
+}
+
+fun signingProp(name: String): String? =
+  signingProps.getProperty(name)
+    ?.trim()
+    ?.takeIf { it.isNotBlank() }
+
 android {
   namespace = "com.pirate.app"
   compileSdk = 36
+
+  signingConfigs {
+    val storeFilePath = signingProp("storeFile")
+    if (storeFilePath != null) {
+      create("release") {
+        storeFile = file(storeFilePath)
+        storePassword = signingProp("storePassword")
+        keyAlias = signingProp("keyAlias")
+        keyPassword = signingProp("keyPassword")
+      }
+    }
+  }
 
   defaultConfig {
     applicationId = "com.pirate.app"
@@ -106,6 +132,7 @@ android {
 
   buildTypes {
     release {
+      signingConfig = signingConfigs.findByName("release")
       isMinifyEnabled = true
       isShrinkResources = true
       proguardFiles(

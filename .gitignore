@@ -4,7 +4,7 @@
 .kotlin/
 build/
 local.properties
+signing.properties
 **/build/
 app/src/main/jniLibs/
 *.iml
-
