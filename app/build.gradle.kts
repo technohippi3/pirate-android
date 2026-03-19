@@ -19,7 +19,7 @@ fun signingProp(name: String): String? =
     ?.takeIf { it.isNotBlank() }
 
 android {
-  namespace = "com.pirate.app"
+  namespace = "sc.pirate.app"
   compileSdk = 36
 
   signingConfigs {
@@ -35,7 +35,7 @@ android {
   }
 
   defaultConfig {
-    applicationId = "com.pirate.app"
+    applicationId = "sc.pirate.app"
     minSdk = 24
     targetSdk = 36
     versionCode = 1
