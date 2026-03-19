@@ -1003,6 +1003,7 @@ internal fun songPublishRegisterMusicPublish(
   nftMetadataHash: String,
   license: String,
   commercialRevShare: Int,
+  donationPolicy: JSONObject? = null,
   defaultMintingFee: String,
   sessionKey: SessionKeyManager.SessionKey,
   storyIntentOperationId: String? = null,
@@ -1028,6 +1029,7 @@ internal fun songPublishRegisterMusicPublish(
     put("commercialRevShare", normalizedRevShare)
     put("defaultMintingFee", normalizedDefaultMintingFee)
     put("allowDuplicates", true)
+    if (donationPolicy != null) put("donationPolicy", donationPolicy)
     if (!storyIntentOperationId.isNullOrBlank() || !storyIntentUserSig.isNullOrBlank() || storyIntent != null) {
       put("storyIntentOperationId", storyIntentOperationId?.trim())
       put("storyIntentUserSig", storyIntentUserSig?.trim())
