@@ -332,11 +332,20 @@ object DefaultSongPickerRepository : SongPickerRepository {
           remixable = remixable,
         )
       }
-    if (suggested.isNotEmpty()) {
-      return@coroutineScope suggested.take(maxEntries)
+    if (suggested.isEmpty()) {
+      return@coroutineScope latestPublishedSongsCached(maxEntries = maxEntries)
     }
 
-    latestPublishedSongsCached(maxEntries = maxEntries)
+    val merged = LinkedHashMap<String, SongPickerSong>(maxEntries)
+    suggested.forEach { merged[it.trackId] = it }
+    if (merged.size < maxEntries) {
+      latestPublishedSongsCached(maxEntries = maxEntries).forEach { song ->
+        if (!merged.containsKey(song.trackId)) {
+          merged[song.trackId] = song
+        }
+      }
+    }
+    merged.values.take(maxEntries).toList()
   }
 
   private suspend fun fetchLatestPublishedSongs(maxEntries: Int): List<SongPickerSong> {
