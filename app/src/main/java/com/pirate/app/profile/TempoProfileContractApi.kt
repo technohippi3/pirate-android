@@ -36,7 +36,7 @@ data class TempoProfileUpsertResult(
 )
 
 object TempoProfileContractApi {
-  const val PROFILE_V2 = "0x6FDb2F5B13F8D7f365B4A75A2763d5C7270E8066"
+  const val PROFILE_V2 = "0x58eAC016afD2DFdfb935dFcfa0750F30875ea15c"
   private const val MIN_GAS_LIMIT_UPSERT_PROFILE = 1_600_000L
   private const val GAS_LIMIT_BUFFER = 250_000L
 

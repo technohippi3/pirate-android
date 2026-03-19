@@ -31,9 +31,9 @@ object TempoClient {
     // Update this after each SessionEscrow redeploy.
     const val SESSION_ESCROW_V1 = "0xF3B4DB746a874A2197ae21C857e1Ca692C6ED059"
     // StudyAttemptsV1 from contracts/tempo deployment.
-    const val STUDY_ATTEMPTS_V1 = "0x8c61a36e7573554aa9FC37898f87BA327B0DAcb8"
+    const val STUDY_ATTEMPTS_V1 = "0xd439F574b41264c14e6c3494B1fdBc85B02C623D"
     // StreakClaimV1 from contracts/tempo deployment.
-    const val STREAK_CLAIM_V1 = "0x33ACA79D9E148d812227c9923d1AD8569BB7C44b"
+    const val STREAK_CLAIM_V1 = "0xAfeb3842A34e84a9070AE4D75dbDB0f02fE77B5f"
     const val ALPHA_USD = "0x20c0000000000000000000000000000000000001"
     const val BETA_USD = "0x20c0000000000000000000000000000000000002"
     const val THETA_USD = "0x20c0000000000000000000000000000000000003"

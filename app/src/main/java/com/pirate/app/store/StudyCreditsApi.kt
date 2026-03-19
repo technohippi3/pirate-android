@@ -31,7 +31,7 @@ data class StudyCreditsBuyResult(
 )
 
 object StudyCreditsApi {
-  const val STUDY_SET_REGISTRY = "0x7fD583d6e9D2F820432455D071617b5C1449c7a4"
+  const val STUDY_SET_REGISTRY = "0xB439853d4e8870A5f75277fa6b3c21C9B5Da089A"
 
   private const val MIN_GAS_LIMIT_APPROVE = 120_000L
   private const val MIN_GAS_LIMIT_BUY = 260_000L

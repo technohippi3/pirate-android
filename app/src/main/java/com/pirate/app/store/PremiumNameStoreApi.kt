@@ -35,7 +35,7 @@ data class PremiumStoreBuyResult(
 )
 
 object PremiumNameStoreApi {
-  const val PREMIUM_NAME_STORE = "0x46Bcae2625157b562c974bb5a912dfcb811a234A"
+  const val PREMIUM_NAME_STORE = "0x628BE6DEcAF672C154bbC871e2D2Ec32D81036db"
   private const val DEFAULT_DURATION_SECONDS = 365L * 24L * 60L * 60L
 
   private const val MIN_GAS_LIMIT_APPROVE = 120_000L

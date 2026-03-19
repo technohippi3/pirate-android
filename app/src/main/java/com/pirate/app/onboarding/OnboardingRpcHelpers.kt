@@ -21,9 +21,9 @@ import java.math.BigInteger
 object OnboardingRpcHelpers {
   private const val TAG = "OnboardingRpc"
   private const val RPC_URL = "https://rpc.moderato.tempo.xyz"
-  private const val REGISTRY_V1 = "0xA111c5cA16752B09fF16B3B8B24BA55a8486aB23"
-  private const val RECORDS_V1 = "0x57e36738f02Bb90664d00E4EC0C8507feeF3995c"
-  private const val PROFILE_V2 = "0x6FDb2F5B13F8D7f365B4A75A2763d5C7270E8066"
+  private const val REGISTRY_V1 = "0x4377af27381CbC8bdb39330DDc656b8f3648B674"
+  private const val RECORDS_V1 = "0x3741fDFaEEFe6bA370da44AF8530B6b7361742dD"
+  private const val PROFILE_V2 = "0x58eAC016afD2DFdfb935dFcfa0750F30875ea15c"
 
   /** HNS_NODE = namehash("heaven.hnsbridge.eth") */
   private const val HNS_NAMESPACE_NODE = "0x8edf6f47e89d05c0e21320161fda1fd1fabd0081a66c959691ea17102e39fb27"

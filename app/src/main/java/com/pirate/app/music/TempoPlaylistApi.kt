@@ -19,7 +19,7 @@ data class TempoPlaylistTxResult(
 
 object TempoPlaylistApi {
   private const val TAG = "TempoPlaylistApi"
-  const val PLAYLIST_V1 = "0xc8Eb0596daa842FF7A799C93Df4d3cEAB9B19eAb"
+  const val PLAYLIST_V1 = "0xAC21F2E65318BC2086359e883C6833F72D458456"
 
   private const val GAS_LIMIT_CREATE_MIN = 800_000L
   private const val GAS_LIMIT_SET_TRACKS_MIN = 100_000L

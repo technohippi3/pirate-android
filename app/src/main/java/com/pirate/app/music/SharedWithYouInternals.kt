@@ -7,7 +7,7 @@ import okhttp3.OkHttpClient
 
 internal const val SHARED_WITH_YOU_TAG = "SharedWithYouApi"
 internal const val SHARED_WITH_YOU_TEMPO_RPC = "https://rpc.moderato.tempo.xyz"
-internal const val SHARED_WITH_YOU_SCROBBLE_V4 = "0xe00e82086480E61AaC8d5ad8B05B56A582dD0000"
+internal const val SHARED_WITH_YOU_SCROBBLE_V4 = "0x30612270FC86F60052278c73379eDbC0EaC13c8E"
 
 internal val sharedWithYouClient = OkHttpClient()
 internal val sharedWithYouJsonMediaType = "application/json; charset=utf-8".toMediaType()
