@@ -38,6 +38,15 @@ Common commands:
 ./scripts/androidw.sh installDebug
 ```
 
+Lower-impact mode for laptops/workstations that choke on full parallel builds:
+
+```bash
+PIRATE_ANDROID_SLOW=1 ./scripts/androidw.sh installDebug
+PIRATE_ANDROID_SLOW=1 PIRATE_ANDROID_MAX_WORKERS=1 ./scripts/androidw.sh :app:compileDebugKotlin
+```
+
+`PIRATE_ANDROID_SLOW=1` disables Gradle parallel builds and caps workers to `2` by default. Override with `PIRATE_ANDROID_MAX_WORKERS=<n>` when you want an even gentler build.
+
 APK output:
 - `apps/android/app/build/outputs/apk/debug/app-debug.apk`
 

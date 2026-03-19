@@ -64,6 +64,11 @@ if [ -z "${GRADLE_USER_HOME:-}" ]; then
   export GRADLE_USER_HOME="/tmp/gradle-${USER:-dev}"
 fi
 
+if [ "${PIRATE_ANDROID_SLOW:-0}" = "1" ]; then
+  slow_workers="${PIRATE_ANDROID_MAX_WORKERS:-2}"
+  export GRADLE_OPTS="${GRADLE_OPTS:-} -Dorg.gradle.parallel=false -Dorg.gradle.workers.max=${slow_workers}"
+fi
+
 if [ -z "${ANDROID_SDK_ROOT:-}" ] && [ -n "${ANDROID_HOME:-}" ]; then
   export ANDROID_SDK_ROOT="${ANDROID_HOME}"
 fi

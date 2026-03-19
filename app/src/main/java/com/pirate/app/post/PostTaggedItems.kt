@@ -81,8 +81,9 @@ object PostTaggedItemsApi {
         .orEmpty()
     val json = runCatching { JSONObject(raw) }.getOrNull()
     if (status !in 200..299) {
+      val code = json?.optString("code", "").orEmpty()
       val details = json?.optString("error", "").orEmpty().ifBlank { raw.ifBlank { "HTTP $status" } }
-      throw IllegalStateException(details)
+      throw IllegalStateException(mapResolveErrorMessage(status = status, code = code, details = details))
     }
     if (json == null) throw IllegalStateException("Tagged item resolver returned invalid JSON")
 
@@ -125,6 +126,25 @@ object PostTaggedItemsApi {
 
     return PostTaggedItemsResolveResult(items = items, rejected = rejected)
   }
+}
+
+private fun mapResolveErrorMessage(
+  status: Int,
+  code: String,
+  details: String,
+): String {
+  val normalizedCode = code.trim()
+  val normalizedDetails = details.trim()
+  if (normalizedCode == "tagged_items_unavailable") {
+    return "Shopping links are unavailable right now. Try again later."
+  }
+  if (
+    status == 503 &&
+    normalizedDetails.contains("MUSIC_TAGGED_ITEMS_WORKER or MUSIC_TAGGED_ITEMS_RESOLVER_URL must be configured")
+  ) {
+    return "Shopping links are unavailable right now. Try again later."
+  }
+  return normalizedDetails.ifBlank { "HTTP $status" }
 }
 
 private fun jsonObjects(array: JSONArray?): List<JSONObject> {
