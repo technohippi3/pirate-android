@@ -25,7 +25,3 @@ UpdateCheckMode: Tags
 CurrentVersion: 0.1.0-alpha.2
 CurrentVersionCode: 2
 
-# Notes for the actual fdroiddata MR:
-# - Create and push the upstream tag `v0.1.0-alpha.2` before filing the fdroiddata MR.
-# - Add AllowedAPKSigningKeys only if you want F-Droid to verify against upstream release APKs.
-# - App metadata is sourced from fastlane/metadata/android/en-US/.
