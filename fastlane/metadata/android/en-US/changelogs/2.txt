@@ -1,0 +1,1 @@
+Initial public alpha release of Pirate for Android with feed, music, chat, profile, and learning flows, plus an F-Droid-compatible build flavor without proprietary live voice dependencies.

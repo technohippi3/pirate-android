@@ -1,0 +1,13 @@
+Pirate is a social music app built around publishing, discovery, chat, and learning.
+
+You can browse a feed, manage a profile, message over XMTP, listen to music, and work through language-learning flows powered by songs and short-form content.
+
+The Android app also includes:
+
+- Tempo passkey-based account access
+- music playback and playlist flows
+- artist and profile pages
+- chat with the Pirate assistant
+- study and streak features
+
+Authentication uses Android Credential Manager. Passkey support depends on the device, Android version, browser or app integration, and installed credential provider. On some GMS-free setups, passkey flows may be limited or unavailable.

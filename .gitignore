@@ -6,5 +6,6 @@ build/
 local.properties
 signing.properties
 **/build/
+# Keep accidental local native artifacts out of the Android repo.
 app/src/main/jniLibs/
 *.iml

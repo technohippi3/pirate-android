@@ -38,6 +38,13 @@ Common commands:
 ./scripts/androidw.sh installDebug
 ```
 
+F-Droid flavor commands:
+
+```bash
+PIRATE_ANDROID_SLOW=1 PIRATE_ANDROID_MAX_WORKERS=1 ./scripts/androidw.sh :app:compileFdroidDebugKotlin
+PIRATE_ANDROID_SLOW=1 PIRATE_ANDROID_MAX_WORKERS=1 ./scripts/androidw.sh :app:assembleFdroidDebug
+```
+
 Lower-impact mode for laptops/workstations that choke on full parallel builds:
 
 ```bash
