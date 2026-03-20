@@ -24,8 +24,6 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-enum class VoiceCallState { Idle, Connecting, Connected, Error }
-
 internal data class AgentStartResponse(
   val sessionId: String,
   val channel: String,
