@@ -37,7 +37,7 @@ internal suspend fun submitScrobbleWithPasskeyInternal(
       throw IllegalStateException("Wrong chain connected: $chainId (expected ${TempoClient.CHAIN_ID})")
     }
 
-    val parts = TrackIds.computeMetaParts(safeTitle, safeArtist, safeAlbum)
+    val parts = TrackIds.computeScrobbleMetaParts(safeTitle, safeArtist, safeAlbum)
     val trackIdHex = "0x${P256Utils.bytesToHex(parts.trackId)}"
     val isRegistered = withContext(Dispatchers.IO) { isTrackRegistered(trackIdHex) }
 
@@ -178,7 +178,7 @@ internal suspend fun submitScrobbleWithSessionKeyInternal(
       throw IllegalStateException("Wrong chain connected: $chainId (expected ${TempoClient.CHAIN_ID})")
     }
 
-    val parts = TrackIds.computeMetaParts(safeTitle, safeArtist, safeAlbum)
+    val parts = TrackIds.computeScrobbleMetaParts(safeTitle, safeArtist, safeAlbum)
     val trackIdHex = "0x${P256Utils.bytesToHex(parts.trackId)}"
     val isRegistered = withContext(Dispatchers.IO) { isTrackRegistered(trackIdHex) }
 

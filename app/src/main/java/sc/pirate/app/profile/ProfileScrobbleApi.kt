@@ -1,6 +1,9 @@
 package sc.pirate.app.profile
 
 import sc.pirate.app.music.CoverRef
+import sc.pirate.app.music.SHARED_WITH_YOU_SCROBBLE_V4
+import sc.pirate.app.music.SHARED_WITH_YOU_TEMPO_RPC
+import sc.pirate.app.music.fetchTrackMetaFromScrobbleV4
 import sc.pirate.app.util.tempoMusicSocialSubgraphUrls
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -8,7 +11,9 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import org.json.JSONArray
 import org.json.JSONObject
+import kotlin.math.max
 
 data class ScrobbleRow(
   val trackId: String?,
@@ -20,8 +25,19 @@ data class ScrobbleRow(
 )
 
 object ProfileScrobbleApi {
+  private const val SCROBBLED_TOPIC0 = "0xe4535246dec82f5f9313b71f0e50716106f16725e5528d9ef8f5b670656d19a8"
+  private const val SCROBBLE_V4_START_BLOCK = 8_797_524L
+  private const val CHAIN_FALLBACK_WINDOW = 100_000L
+  private const val SUBGRAPH_STALE_BLOCK_THRESHOLD = 512L
   private val client = OkHttpClient()
   private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+
+  private data class ChainScrobble(
+    val trackId: String,
+    val playedAtSec: Long,
+    val blockNumber: Long,
+    val logIndex: Long,
+  )
 
   fun coverUrl(cid: String, size: Int = 96): String? =
     CoverRef.resolveCoverUrl(ref = cid, width = size, height = size, format = "webp", quality = 80)
@@ -30,10 +46,14 @@ object ProfileScrobbleApi {
     val addr = userAddress.trim().lowercase()
     if (addr.isBlank()) return@withContext emptyList()
 
+    val latestBlock = runCatching { fetchLatestBlockNumber() }.getOrNull()
     var sawSuccessfulEmpty = false
     var subgraphError: Throwable? = null
     for (subgraphUrl in musicSocialSubgraphUrls()) {
       try {
+        if (latestBlock != null && isSubgraphStale(subgraphUrl, latestBlock)) {
+          return@withContext fetchFromChain(addr, max, latestBlock)
+        }
         val rows = fetchFromSubgraph(subgraphUrl, addr, max)
         if (rows.isNotEmpty()) return@withContext rows
         sawSuccessfulEmpty = true
@@ -42,12 +62,38 @@ object ProfileScrobbleApi {
       }
     }
 
+    if (latestBlock != null) {
+      val onChain = fetchFromChain(addr, max, latestBlock)
+      if (onChain.isNotEmpty()) return@withContext onChain
+    }
     if (sawSuccessfulEmpty) return@withContext emptyList()
     if (subgraphError != null) throw subgraphError
     emptyList()
   }
 
   private fun musicSocialSubgraphUrls(): List<String> = tempoMusicSocialSubgraphUrls()
+
+  private fun isSubgraphStale(
+    subgraphUrl: String,
+    latestBlock: Long,
+  ): Boolean {
+    val meta =
+      postQuery(
+        subgraphUrl,
+        """{ _meta { block { number } } }""",
+      )
+    val indexedBlock =
+      meta
+        .optJSONObject("data")
+        ?.optJSONObject("_meta")
+        ?.optJSONObject("block")
+        ?.optString("number", "0")
+        ?.trim()
+        ?.toLongOrNull()
+        ?: 0L
+    if (indexedBlock <= 0L) return true
+    return latestBlock - indexedBlock > SUBGRAPH_STALE_BLOCK_THRESHOLD
+  }
 
   private fun fetchFromSubgraph(subgraphUrl: String, userAddress: String, max: Int): List<ScrobbleRow> {
     // Fetch scrobbles with inline track metadata.
@@ -96,6 +142,124 @@ object ProfileScrobbleApi {
     }
     return rows
   }
+
+  private fun fetchFromChain(
+    userAddress: String,
+    max: Int,
+    latestBlock: Long,
+  ): List<ScrobbleRow> {
+    val rows = ArrayList<ChainScrobble>(max)
+    var toBlock = latestBlock
+    while (toBlock >= SCROBBLE_V4_START_BLOCK && rows.size < max) {
+      val fromBlock = max(SCROBBLE_V4_START_BLOCK, toBlock - CHAIN_FALLBACK_WINDOW + 1L)
+      rows += fetchScrobbleLogsWindow(userAddress, fromBlock, toBlock)
+      toBlock = fromBlock - 1L
+    }
+
+    val deduped =
+      rows
+        .sortedWith(
+          compareByDescending<ChainScrobble> { it.playedAtSec }
+            .thenByDescending { it.blockNumber }
+            .thenByDescending { it.logIndex },
+        )
+        .take(max)
+
+    if (deduped.isEmpty()) return emptyList()
+
+    val trackMeta = fetchTrackMetaFromScrobbleV4(deduped.map { it.trackId }.distinct())
+    val now = System.currentTimeMillis() / 1000
+    return deduped.map { row ->
+      val meta = trackMeta[row.trackId]
+      ScrobbleRow(
+        trackId = row.trackId,
+        playedAtSec = row.playedAtSec,
+        title = meta?.title ?: row.trackId.take(14),
+        artist = meta?.artist ?: "Unknown Artist",
+        album = meta?.album.orEmpty(),
+        playedAgo = formatTimeAgo(row.playedAtSec, now),
+      )
+    }
+  }
+
+  private fun fetchScrobbleLogsWindow(
+    userAddress: String,
+    fromBlock: Long,
+    toBlock: Long,
+  ): List<ChainScrobble> {
+    val userTopic = "0x" + "0".repeat(24) + userAddress.removePrefix("0x")
+    val payload =
+      JSONObject()
+        .put("jsonrpc", "2.0")
+        .put("id", 1)
+        .put("method", "eth_getLogs")
+        .put(
+          "params",
+          JSONArray().put(
+            JSONObject()
+              .put("address", SHARED_WITH_YOU_SCROBBLE_V4)
+              .put("fromBlock", "0x${fromBlock.toString(16)}")
+              .put("toBlock", "0x${toBlock.toString(16)}")
+              .put(
+                "topics",
+                JSONArray()
+                  .put(SCROBBLED_TOPIC0)
+                  .put(userTopic),
+              ),
+          ),
+        )
+
+    val req =
+      Request.Builder()
+        .url(SHARED_WITH_YOU_TEMPO_RPC)
+        .post(payload.toString().toRequestBody(jsonMediaType))
+        .build()
+
+    client.newCall(req).execute().use { response ->
+      if (!response.isSuccessful) throw IllegalStateException("RPC failed: ${response.code}")
+      val body = JSONObject(response.body?.string().orEmpty())
+      val error = body.optJSONObject("error")
+      if (error != null) throw IllegalStateException(error.optString("message", error.toString()))
+      val logs = body.optJSONArray("result") ?: return emptyList()
+      val out = ArrayList<ChainScrobble>(logs.length())
+      for (i in 0 until logs.length()) {
+        val log = logs.optJSONObject(i) ?: continue
+        val topics = log.optJSONArray("topics") ?: continue
+        if (topics.length() < 3) continue
+        val trackId = topics.optString(2, "").trim().lowercase()
+        if (!trackId.matches(Regex("^0x[0-9a-f]{64}$"))) continue
+        val playedAtSec = hexToLong(log.optString("data", "")) ?: continue
+        val blockNumber = hexToLong(log.optString("blockNumber", "")) ?: 0L
+        val logIndex = hexToLong(log.optString("logIndex", "")) ?: i.toLong()
+        out += ChainScrobble(trackId, playedAtSec, blockNumber, logIndex)
+      }
+      return out
+    }
+  }
+
+  private fun fetchLatestBlockNumber(): Long {
+    val payload =
+      JSONObject()
+        .put("jsonrpc", "2.0")
+        .put("id", 1)
+        .put("method", "eth_blockNumber")
+        .put("params", JSONArray())
+    val req =
+      Request.Builder()
+        .url(SHARED_WITH_YOU_TEMPO_RPC)
+        .post(payload.toString().toRequestBody(jsonMediaType))
+        .build()
+    client.newCall(req).execute().use { response ->
+      if (!response.isSuccessful) throw IllegalStateException("RPC failed: ${response.code}")
+      val body = JSONObject(response.body?.string().orEmpty())
+      val error = body.optJSONObject("error")
+      if (error != null) throw IllegalStateException(error.optString("message", error.toString()))
+      return hexToLong(body.optString("result", "")) ?: 0L
+    }
+  }
+
+  private fun hexToLong(value: String): Long? =
+    value.trim().removePrefix("0x").ifBlank { return 0L }.toLongOrNull(16)
 
   private fun fetchTrackMetadata(subgraphUrl: String, ids: List<String>): Map<String, TrackMeta> {
     val quoted = ids.joinToString(",") { "\"${it.replace("\"", "\\\"")}\"" }

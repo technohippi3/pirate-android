@@ -16,17 +16,8 @@ object TrackIds {
     artist: String,
     album: String?,
   ): String {
-    val kind = 3
-    val payload =
-      keccak256(
-        abiEncodeStrings(
-          normalize(title),
-          normalize(artist),
-          normalize(album.orEmpty()),
-        ),
-      )
-    val trackId = keccak256(abiEncodeUint8Bytes32(kind, payload))
-    return "0x${trackId.toHex()}"
+    val parts = computeMetaParts(title = title, artist = artist, album = album)
+    return "0x${parts.trackId.toHex()}"
   }
 
   fun computeMetaParts(
@@ -34,13 +25,43 @@ object TrackIds {
     artist: String,
     album: String?,
   ): TrackIdParts {
+    return computeMetaPartsInternal(
+      title = title,
+      artist = artist,
+      album = album,
+      normalizeValues = true,
+    )
+  }
+
+  fun computeScrobbleMetaParts(
+    title: String,
+    artist: String,
+    album: String?,
+  ): TrackIdParts {
+    return computeMetaPartsInternal(
+      title = title,
+      artist = artist,
+      album = album,
+      normalizeValues = false,
+    )
+  }
+
+  private fun computeMetaPartsInternal(
+    title: String,
+    artist: String,
+    album: String?,
+    normalizeValues: Boolean,
+  ): TrackIdParts {
     val kind = 3
+    val normalizedTitle = if (normalizeValues) normalize(title) else title
+    val normalizedArtist = if (normalizeValues) normalize(artist) else artist
+    val normalizedAlbum = if (normalizeValues) normalize(album.orEmpty()) else album.orEmpty()
     val payload =
       keccak256(
         abiEncodeStrings(
-          normalize(title),
-          normalize(artist),
-          normalize(album.orEmpty()),
+          normalizedTitle,
+          normalizedArtist,
+          normalizedAlbum,
         ),
       )
     val trackId = keccak256(abiEncodeUint8Bytes32(kind, payload))
