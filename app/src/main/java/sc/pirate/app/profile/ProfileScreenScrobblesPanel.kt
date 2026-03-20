@@ -37,7 +37,6 @@ internal fun ScrobblesPanel(
   loading: Boolean,
   error: String?,
   onOpenSong: ((trackId: String, title: String?, artist: String?) -> Unit)? = null,
-  onOpenArtist: ((String) -> Unit)? = null,
   onRetry: () -> Unit,
 ) {
   when {
@@ -53,7 +52,6 @@ internal fun ScrobblesPanel(
           ScrobbleRowItem(
             scrobble = scrobble,
             onOpenSong = onOpenSong,
-            onOpenArtist = onOpenArtist,
           )
           HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         }
@@ -66,10 +64,8 @@ internal fun ScrobblesPanel(
 internal fun ScrobbleRowItem(
   scrobble: ScrobbleRow,
   onOpenSong: ((trackId: String, title: String?, artist: String?) -> Unit)? = null,
-  onOpenArtist: ((String) -> Unit)? = null,
 ) {
   val songClickable = onOpenSong != null && !scrobble.trackId.isNullOrBlank()
-  val artistClickable = onOpenArtist != null && scrobble.artist.isNotBlank()
   val interactionSource = remember { MutableInteractionSource() }
   val pressed by interactionSource.collectIsPressedAsState()
   Row(
@@ -104,7 +100,6 @@ internal fun ScrobbleRowItem(
           color = PiratePalette.TextMuted,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
-          modifier = if (artistClickable) Modifier.clickable { onOpenArtist?.invoke(scrobble.artist) } else Modifier,
         )
         Text(" · ${scrobble.playedAgo}", style = MaterialTheme.typography.bodyLarge, color = PiratePalette.TextMuted, maxLines = 1, overflow = TextOverflow.Ellipsis)
       }

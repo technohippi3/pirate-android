@@ -112,7 +112,6 @@ internal fun ProfileScreenTabContent(
       loading = scrobblesLoading,
       error = scrobblesError,
       onOpenSong = onOpenSong,
-      onOpenArtist = onOpenArtist,
       onRetry = onScrobbleRetry,
     )
 

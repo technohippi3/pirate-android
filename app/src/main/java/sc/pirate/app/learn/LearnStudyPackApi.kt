@@ -44,6 +44,7 @@ internal object LearnStudyPackApi {
   private const val TAG = "LearnStudyPackApi"
   private const val ENSURE_MAX_POLLS = 8
   private const val ENSURE_MAX_TOTAL_WAIT_MS = 90_000L
+  private val SUPPORTED_SPEC_VERSIONS = setOf("exercise-pack-v2", "exercise-pack-v4")
   private val ADDRESS_REGEX = Regex("^0x[a-fA-F0-9]{40}$")
 
   suspend fun fetchPackByRef(studySetRef: String): LearnStudySetPack =
@@ -245,7 +246,7 @@ internal object LearnStudyPackApi {
 
   private fun parsePack(json: JSONObject): LearnStudySetPack {
     val specVersion = json.optString("specVersion", "").trim()
-    if (specVersion != "exercise-pack-v2") {
+    if (specVersion !in SUPPORTED_SPEC_VERSIONS) {
       throw IllegalStateException("Unsupported study set version: $specVersion")
     }
 
