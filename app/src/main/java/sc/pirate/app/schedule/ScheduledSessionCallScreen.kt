@@ -31,8 +31,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sc.pirate.app.assistant.VoiceCallState
-
-private val EndCallRed = Color(0xFFE57373)
+import sc.pirate.app.theme.PirateTokens
 
 @Composable
 fun ScheduledSessionCallScreen(
@@ -140,7 +139,7 @@ fun ScheduledSessionCallScreen(
         Surface(
           modifier = Modifier.size(64.dp),
           shape = CircleShape,
-          color = EndCallRed,
+          color = PirateTokens.colors.accentDanger,
         ) {
           PirateIconButton(
             onClick = { controller.endCall() },
@@ -149,7 +148,7 @@ fun ScheduledSessionCallScreen(
             Icon(
               PhosphorIcons.Regular.PhoneX,
               contentDescription = "End call",
-              tint = Color.White,
+              tint = PirateTokens.colors.textOnAccent,
               modifier = Modifier.size(28.dp),
             )
           }

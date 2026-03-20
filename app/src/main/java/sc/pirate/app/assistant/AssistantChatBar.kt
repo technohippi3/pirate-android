@@ -55,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import sc.pirate.app.R
 import sc.pirate.app.theme.PiratePalette
+import sc.pirate.app.theme.PirateTokens
 import kotlinx.coroutines.launch
 
 @Composable
@@ -77,8 +78,6 @@ fun AssistantChatBar(
       listState.animateScrollToItem(messages.size - 1)
     }
   }
-
-  val accentPurple = Color(0xFFCBA6F7) // catppuccin mauve
 
   fun doSend() {
     val text = inputText.trim()
@@ -139,7 +138,7 @@ fun AssistantChatBar(
           Text(
             "Violet",
             style = MaterialTheme.typography.titleMedium,
-            color = accentPurple,
+            color = PirateTokens.colors.accentBrand,
             modifier = Modifier.weight(1f),
           )
         }
@@ -148,7 +147,7 @@ fun AssistantChatBar(
           CircularProgressIndicator(
             modifier = Modifier.size(20.dp),
             strokeWidth = 2.dp,
-            color = accentPurple,
+            color = PirateTokens.colors.accentBrand,
           )
           Spacer(Modifier.width(8.dp))
         }
@@ -216,7 +215,7 @@ fun AssistantChatBar(
               shape = RoundedCornerShape(24.dp),
               singleLine = true,
               colors = OutlinedTextFieldDefaults.colors(
-                focusedBorderColor = accentPurple,
+                focusedBorderColor = PirateTokens.colors.accentBrand,
               ),
               keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
               keyboardActions = KeyboardActions(onSend = { doSend() }),
@@ -232,7 +231,7 @@ fun AssistantChatBar(
               Icon(
                 PhosphorIcons.Regular.PaperPlaneRight,
                 contentDescription = "Send",
-                tint = if (inputText.isNotBlank() && !sending) accentPurple else PiratePalette.TextMuted,
+                tint = if (inputText.isNotBlank() && !sending) PirateTokens.colors.accentBrand else PiratePalette.TextMuted,
                 modifier = Modifier.size(24.dp),
               )
             }

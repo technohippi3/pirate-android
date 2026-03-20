@@ -19,10 +19,9 @@ import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import sc.pirate.app.onboarding.steps.LocationResult
-import sc.pirate.app.theme.PiratePalette
+import sc.pirate.app.theme.PirateTokens
 
 @Composable
 internal fun ProfileEditBodyContent(
@@ -60,7 +59,7 @@ internal fun ProfileEditBodyContent(
         if (heavenName.isNullOrBlank()) {
           Text(
             "Tip: claim a .heaven or .pirate name to sync cover, avatar, location, and school across name records.",
-            color = PiratePalette.TextMuted,
+            color = PirateTokens.colors.textSecondary,
             style = MaterialTheme.typography.bodyMedium,
           )
         }
@@ -170,7 +169,7 @@ internal fun ProfileEditSheetHost(
   ModalBottomSheet(
     onDismissRequest = onDismiss,
     sheetState = sheetState,
-    containerColor = Color(0xFF1C1C1C),
+    containerColor = PirateTokens.colors.bgSurface,
   ) {
     when (sheet) {
       ProfileEditSheet.DisplayName -> {

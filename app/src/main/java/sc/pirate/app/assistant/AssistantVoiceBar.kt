@@ -34,9 +34,7 @@ import com.adamglin.PhosphorIcons
 import com.adamglin.phosphoricons.Regular
 import com.adamglin.phosphoricons.regular.PhoneX
 import sc.pirate.app.R
-
-private val AccentPurple = Color(0xFFCBA6F7)
-private val EndCallRed = Color(0xFFE57373)
+import sc.pirate.app.theme.PirateTokens
 
 @Composable
 fun AssistantVoiceBar(controller: AgoraVoiceController, onOpen: (() -> Unit)? = null) {
@@ -63,7 +61,10 @@ fun AssistantVoiceBar(controller: AgoraVoiceController, onOpen: (() -> Unit)? = 
       modifier = Modifier
         .fillMaxWidth()
         .height(2.dp)
-        .background(if (isBotSpeaking) AccentPurple else AccentPurple.copy(alpha = 0.4f)),
+        .background(
+          if (isBotSpeaking) PirateTokens.colors.accentBrand
+          else PirateTokens.colors.accentBrand.copy(alpha = 0.4f),
+        ),
     )
 
     Row(
@@ -111,7 +112,7 @@ fun AssistantVoiceBar(controller: AgoraVoiceController, onOpen: (() -> Unit)? = 
         Icon(
           imageVector = PhosphorIcons.Regular.PhoneX,
           contentDescription = "End call",
-          tint = EndCallRed,
+          tint = PirateTokens.colors.accentDanger,
           modifier = Modifier.size(20.dp),
         )
       }

@@ -33,6 +33,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import sc.pirate.app.theme.PiratePalette
+import sc.pirate.app.theme.PirateTokens
 import coil.compose.AsyncImage
 import java.io.File
 import androidx.compose.ui.Alignment
@@ -115,7 +116,7 @@ internal fun LearnGlobalStreakChip(days: Int) {
     Icon(
       imageVector = Icons.Filled.LocalFireDepartment,
       contentDescription = null,
-      tint = Color(0xFFFF5A2A),
+      tint = PirateTokens.colors.accentBrand,
       modifier = Modifier.size(24.dp),
     )
     Spacer(modifier = Modifier.width(6.dp))

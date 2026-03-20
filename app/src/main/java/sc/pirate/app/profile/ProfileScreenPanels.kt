@@ -69,7 +69,7 @@ import sc.pirate.app.onboarding.OnboardingRpcHelpers
 import sc.pirate.app.R
 import sc.pirate.app.tempo.SessionKeyManager
 import sc.pirate.app.tempo.TempoPasskeyManager
-import sc.pirate.app.theme.PiratePalette
+import sc.pirate.app.theme.PirateTokens
 import sc.pirate.app.ui.VerifiedSealBadge
 import sc.pirate.app.ui.PirateSheetTitle
 import sc.pirate.app.util.resolveAvatarUrl
@@ -94,7 +94,7 @@ internal fun SettingsSheet(
   ModalBottomSheet(
     onDismissRequest = onDismiss,
     sheetState = sheetState,
-    containerColor = Color(0xFF1C1C1C),
+    containerColor = PirateTokens.colors.bgSurface,
   ) {
     Column(
       modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 32.dp),
@@ -105,12 +105,12 @@ internal fun SettingsSheet(
       )
       Spacer(Modifier.height(24.dp))
 
-      Text(stringResource(R.string.profile_settings_wallet_address), style = MaterialTheme.typography.labelLarge, color = PiratePalette.TextMuted)
+      Text(stringResource(R.string.profile_settings_wallet_address), style = MaterialTheme.typography.labelLarge, color = PirateTokens.colors.textSecondary)
       Spacer(Modifier.height(8.dp))
       Row(
         modifier = Modifier
           .fillMaxWidth()
-          .background(Color(0xFF262626), RoundedCornerShape(12.dp))
+          .background(PirateTokens.colors.bgElevated, RoundedCornerShape(PirateTokens.radius.lg))
           .clickable {
             clipboardManager.setText(AnnotatedString(ethAddress))
             copied = true
@@ -135,19 +135,19 @@ internal fun SettingsSheet(
           PhosphorIcons.Regular.Copy,
           contentDescription = stringResource(R.string.profile_settings_copy),
           modifier = Modifier.size(20.dp),
-          tint = if (copied) Color(0xFFA6E3A1) else PiratePalette.TextMuted,
+          tint = if (copied) PirateTokens.colors.accentSuccess else PirateTokens.colors.textSecondary,
         )
       }
       if (copied) {
         Spacer(Modifier.height(4.dp))
-        Text(stringResource(R.string.profile_settings_copied), style = MaterialTheme.typography.bodySmall, color = Color(0xFFA6E3A1))
+        Text(stringResource(R.string.profile_settings_copied), style = MaterialTheme.typography.bodySmall, color = PirateTokens.colors.accentSuccess)
       }
 
       Spacer(Modifier.height(24.dp))
-      HorizontalDivider(color = Color(0xFF363636))
+      HorizontalDivider(color = PirateTokens.colors.borderSoft)
       Spacer(Modifier.height(16.dp))
 
-      Text(stringResource(R.string.profile_settings_app), style = MaterialTheme.typography.labelLarge, color = PiratePalette.TextMuted)
+      Text(stringResource(R.string.profile_settings_app), style = MaterialTheme.typography.labelLarge, color = PirateTokens.colors.textSecondary)
       Spacer(Modifier.height(8.dp))
       Text(
         stringResource(R.string.profile_settings_app_version, BuildConfig.VERSION_NAME),
@@ -156,7 +156,7 @@ internal fun SettingsSheet(
       )
 
       Spacer(Modifier.height(24.dp))
-      HorizontalDivider(color = Color(0xFF363636))
+      HorizontalDivider(color = PirateTokens.colors.borderSoft)
       Spacer(Modifier.height(16.dp))
 
       PirateOutlinedButton(
@@ -176,7 +176,7 @@ internal fun SettingsSheet(
 
 @Composable
 internal fun EmptyTabPanel(label: String) {
-  CenteredStatus { Text(stringResource(R.string.profile_tab_coming_soon, label), color = PiratePalette.TextMuted) }
+  CenteredStatus { Text(stringResource(R.string.profile_tab_coming_soon, label), color = PirateTokens.colors.textSecondary) }
 }
 
 @Composable
@@ -194,6 +194,6 @@ internal fun FollowStat(count: String, label: String, onClick: (() -> Unit)? = n
     horizontalArrangement = Arrangement.spacedBy(4.dp),
   ) {
     Text(count, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-    Text(label, style = MaterialTheme.typography.bodyLarge, color = PiratePalette.TextMuted)
+    Text(label, style = MaterialTheme.typography.bodyLarge, color = PirateTokens.colors.textSecondary)
   }
 }

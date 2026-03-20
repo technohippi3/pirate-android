@@ -87,6 +87,7 @@ import androidx.media3.exoplayer.ExoPlayer
 import sc.pirate.app.songpicker.DefaultSongPickerRepository
 import sc.pirate.app.songpicker.SongPickerSheet
 import sc.pirate.app.songpicker.SongPickerSong
+import sc.pirate.app.theme.PirateTokens
 import sc.pirate.app.ui.PiratePrimaryButton
 import java.io.File
 import java.io.FileInputStream
@@ -455,7 +456,7 @@ fun PostCaptureScreen(
           .padding(top = 14.dp, start = 14.dp)
           .size(46.dp)
           .clip(androidx.compose.foundation.shape.CircleShape)
-          .background(Color.Black.copy(alpha = 0.36f)),
+          .background(PirateTokens.colors.bgOverlay.copy(alpha = 0.66f)),
     ) {
       Icon(
         imageVector = PhosphorIcons.Regular.X,
@@ -474,8 +475,8 @@ fun PostCaptureScreen(
       shape = RoundedCornerShape(20.dp),
       colors =
         ButtonDefaults.outlinedButtonColors(
-          containerColor = Color.Black.copy(alpha = 0.48f),
-          contentColor = Color.White,
+          containerColor = PirateTokens.colors.bgOverlay.copy(alpha = 0.78f),
+          contentColor = PirateTokens.colors.textOnAccent,
         ),
       onClick = {
         if (isRecording || preparingPreview) {
@@ -519,7 +520,7 @@ fun PostCaptureScreen(
               .fillMaxWidth(captureProgress)
               .height(4.dp)
               .clip(RoundedCornerShape(99.dp))
-              .background(Color(0xFFE9435A)),
+              .background(PirateTokens.colors.accentBrand),
         )
       }
     }
@@ -558,7 +559,7 @@ fun PostCaptureScreen(
               Modifier
                 .size(52.dp)
                 .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(Color.Black.copy(alpha = 0.32f)),
+                .background(PirateTokens.colors.bgOverlay.copy(alpha = 0.58f)),
           ) {
             Icon(
               imageVector = PhosphorIcons.Regular.Trash,
@@ -577,7 +578,7 @@ fun PostCaptureScreen(
               Modifier
                 .size(52.dp)
                 .clip(androidx.compose.foundation.shape.CircleShape)
-                .background(Color.Black.copy(alpha = 0.24f)),
+                .background(PirateTokens.colors.bgOverlay.copy(alpha = 0.44f)),
             enabled = !isRecording && !preparingPreview,
           ) {
             Icon(
@@ -647,7 +648,7 @@ private fun RecordButton(
         .size(96.dp)
         .clip(androidx.compose.foundation.shape.CircleShape)
         .background(
-          if (enabled) Color(0xFFE9435A) else Color(0xFFE9435A).copy(alpha = 0.45f),
+          if (enabled) PirateTokens.colors.accentBrand else PirateTokens.colors.accentBrand.copy(alpha = 0.45f),
         )
         .pointerInput(enabled, isRecording) {
           detectTapGestures(
@@ -665,7 +666,7 @@ private fun RecordButton(
           Modifier
             .size(44.dp)
             .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
-            .background(Color.White),
+            .background(PirateTokens.colors.textOnAccent),
       )
     }
   }
@@ -685,20 +686,20 @@ private fun AdvanceButton(
         .size(52.dp)
         .clip(androidx.compose.foundation.shape.CircleShape)
         .background(
-          if (enabled) Color.White else Color.White.copy(alpha = 0.4f),
+          if (enabled) PirateTokens.colors.textOnAccent else PirateTokens.colors.textOnAccent.copy(alpha = 0.4f),
         ),
   ) {
     if (loading) {
       androidx.compose.material3.CircularProgressIndicator(
         modifier = Modifier.size(22.dp),
-        color = Color.Black,
+        color = PirateTokens.colors.bgPage,
         strokeWidth = 2.dp,
       )
     } else {
       Icon(
         imageVector = PhosphorIcons.Regular.Check,
         contentDescription = "Continue",
-        tint = Color.Black,
+        tint = PirateTokens.colors.bgPage,
         modifier = Modifier.size(28.dp),
       )
     }
@@ -722,7 +723,7 @@ private fun CaptureTool(
         Modifier
           .size(48.dp)
           .clip(androidx.compose.foundation.shape.CircleShape)
-          .background(Color.Black.copy(alpha = 0.36f)),
+          .background(PirateTokens.colors.bgOverlay.copy(alpha = 0.66f)),
     ) {
       Icon(
         imageVector = icon,

@@ -6,15 +6,16 @@ import androidx.compose.material3.Shapes
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.Typography
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.dp
 
 private val PirateShapes = Shapes().copy(
-  small = RoundedCornerShape(10.dp),
-  medium = RoundedCornerShape(14.dp),
-  large = RoundedCornerShape(14.dp),
-  extraLarge = RoundedCornerShape(16.dp),
+  small = RoundedCornerShape(PirateTokens.radii.lg),
+  medium = RoundedCornerShape(PirateTokens.radii.xl),
+  large = RoundedCornerShape(PirateTokens.radii.xl),
+  extraLarge = RoundedCornerShape(PirateTokens.radii.x2l),
 )
 
 private val PirateTypography = Typography().copy(
@@ -22,38 +23,51 @@ private val PirateTypography = Typography().copy(
 )
 
 private val PirateDarkColors = darkColorScheme(
-  background = Color(0xFF171717),
-  onBackground = Color(0xFFFAFAFA),
+  background = PirateTokens.darkColors.bgPage,
+  onBackground = PirateTokens.darkColors.textPrimary,
 
-  surface = Color(0xFF1C1C1C),
-  onSurface = Color(0xFFFAFAFA),
+  surface = PirateTokens.darkColors.bgSurface,
+  onSurface = PirateTokens.darkColors.textPrimary,
 
-  surfaceVariant = Color(0xFF262626),
-  onSurfaceVariant = Color(0xFFD4D4D4),
+  surfaceVariant = PirateTokens.darkColors.surfaceInteractive,
+  onSurfaceVariant = PirateTokens.darkColors.textSecondary,
 
-  primary = Color(0xFF89B4FA),
-  onPrimary = Color(0xFFFFFFFF),
-  primaryContainer = Color(0xFF1E2D40),
-  onPrimaryContainer = Color(0xFF89B4FA),
+  primary = PirateTokens.darkColors.accentBrand,
+  onPrimary = PirateTokens.darkColors.textOnAccent,
+  primaryContainer = PirateTokens.darkColors.surfaceAccent,
+  onPrimaryContainer = PirateTokens.darkColors.accentBrand,
 
-  secondary = Color(0xFFcba6f7),
-  onSecondary = Color(0xFFFFFFFF),
-  secondaryContainer = Color(0xFF2E2040),
-  onSecondaryContainer = Color(0xFFcba6f7),
+  secondary = PirateTokens.darkColors.textSecondary,
+  onSecondary = PirateTokens.darkColors.bgPage,
+  secondaryContainer = PirateTokens.darkColors.surfaceInteractive,
+  onSecondaryContainer = PirateTokens.darkColors.textPrimary,
 
-  tertiary = Color(0xFFA6E3A1),
-  onTertiary = Color(0xFFFFFFFF),
+  tertiary = PirateTokens.darkColors.accentSuccess,
+  onTertiary = Color(0xFF102014),
+  tertiaryContainer = PirateTokens.darkColors.surfaceSubtle,
+  onTertiaryContainer = PirateTokens.darkColors.accentSuccess,
 
-  outline = Color(0xFF404040),
-  outlineVariant = Color(0xFF363636),
+  error = PirateTokens.darkColors.accentDanger,
+  onError = PirateTokens.darkColors.textOnAccent,
+  errorContainer = PirateTokens.darkColors.surfaceDanger,
+  onErrorContainer = PirateTokens.darkColors.accentDanger,
+
+  outline = PirateTokens.darkColors.borderDefault,
+  outlineVariant = PirateTokens.darkColors.borderSoft,
 )
 
 @Composable
 fun PirateTheme(content: @Composable () -> Unit) {
-  MaterialTheme(
-    colorScheme = PirateDarkColors,
-    shapes = PirateShapes,
-    typography = PirateTypography,
-    content = content,
-  )
+  CompositionLocalProvider(
+    LocalPirateColors provides PirateTokens.darkColors,
+    LocalPirateRadii provides PirateTokens.radii,
+    LocalPirateElevation provides PirateTokens.elevation,
+  ) {
+    MaterialTheme(
+      colorScheme = PirateDarkColors,
+      shapes = PirateShapes,
+      typography = PirateTypography,
+      content = content,
+    )
+  }
 }

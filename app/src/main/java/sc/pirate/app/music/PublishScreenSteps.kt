@@ -55,10 +55,16 @@ import androidx.compose.ui.unit.dp
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
+import sc.pirate.app.theme.PirateTokens
+import sc.pirate.app.ui.PirateBadge
+import sc.pirate.app.ui.PirateBadgeSize
+import sc.pirate.app.ui.PirateBadgeTone
 import java.math.BigDecimal
 import java.math.RoundingMode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
+import sc.pirate.app.ui.PirateSelectionCard
+import sc.pirate.app.ui.PirateSelectionCardLayout
 
 // ── Step 1: Song ─────────────────────────────────────────────────
 
@@ -91,7 +97,7 @@ internal fun SongStep(
         .background(MaterialTheme.colorScheme.surfaceVariant)
         .border(
           width = 2.dp,
-          color = if (formData.coverUri != null) Color(0xFF4CAF50) else MaterialTheme.colorScheme.outline,
+          color = if (formData.coverUri != null) PirateTokens.colors.accentSuccess else MaterialTheme.colorScheme.outline,
           shape = RoundedCornerShape(12.dp),
         )
         .clickable { onPickCover() },
@@ -546,37 +552,22 @@ private fun LicenseOptionCard(
   description: String,
   onClick: () -> Unit,
 ) {
-  val borderColor = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-  val backgroundColor =
-    if (selected) {
-      MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-    } else {
-      MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-    }
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .clip(RoundedCornerShape(12.dp))
-      .background(backgroundColor)
-      .border(width = 1.dp, color = borderColor, shape = RoundedCornerShape(12.dp))
-      .clickable(onClick = onClick)
-      .padding(horizontal = 12.dp, vertical = 10.dp),
-    verticalAlignment = Alignment.Top,
-  ) {
-    RadioButton(selected = selected, onClick = onClick)
-    Spacer(modifier = Modifier.width(8.dp))
-    Column(
-      modifier = Modifier.weight(1f),
-      verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-      Text(title, style = MaterialTheme.typography.bodyLarge, fontWeight = FontWeight.Medium)
-      Text(
-        description,
-        style = MaterialTheme.typography.bodySmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-      )
-    }
-  }
+  PirateSelectionCard(
+    selected = selected,
+    onClick = onClick,
+    title = title,
+    description = description,
+    modifier = Modifier.fillMaxWidth(),
+    badge = {
+      if (selected) {
+        PirateBadge(
+          text = "Selected",
+          tone = PirateBadgeTone.Info,
+          size = PirateBadgeSize.Small,
+        )
+      }
+    },
+  )
 }
 
 // ── Step 6: Donation ──────────────────────────────────────────────
@@ -601,57 +592,46 @@ internal fun DonationStep(
       ) {
         SongPublishService.FEATURED_DONATION_ORGS.forEach { org ->
           val selected = formData.donationEnabled && formData.donationOrgId == org.orgId
-          Column(
+          PirateSelectionCard(
             modifier = Modifier
-              .width(cardWidth)
-              .clip(RoundedCornerShape(16.dp))
-              .background(
-                if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f),
+              .width(cardWidth),
+            selected = selected,
+            onClick = {
+              onFormChange(
+                formData.copy(
+                  donationEnabled = true,
+                  donationOrgId = org.orgId,
+                  donationOrgName = org.name,
+                  donationRecipient = org.destinationRecipient,
+                  donationChainId = org.destinationChainId,
+                  donationCompliant = true,
+                ),
               )
-              .border(
-                width = 1.dp,
-                color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant,
-                shape = RoundedCornerShape(16.dp),
-              )
-              .clickable {
-                onFormChange(
-                  formData.copy(
-                    donationEnabled = true,
-                    donationOrgId = org.orgId,
-                    donationOrgName = org.name,
-                    donationRecipient = org.destinationRecipient,
-                    donationChainId = org.destinationChainId,
-                    donationCompliant = true,
+            },
+            title = org.name,
+            layout = PirateSelectionCardLayout.Stack,
+            media = { isSelected ->
+              Box(
+                modifier = Modifier
+                  .size(64.dp)
+                  .clip(CircleShape)
+                  .background(Color.White)
+                  .border(
+                    width = 1.dp,
+                    color = if (isSelected) PirateTokens.colors.accentBrand.copy(alpha = 0.3f) else PirateTokens.colors.borderSoft,
+                    shape = CircleShape,
                   ),
+                contentAlignment = Alignment.Center,
+              ) {
+                Text(
+                  text = org.name.split(" ").mapNotNull { it.firstOrNull()?.uppercaseChar()?.toString() }.take(2).joinToString(""),
+                  style = MaterialTheme.typography.titleMedium,
+                  fontWeight = FontWeight.Bold,
+                  color = Color.Black,
                 )
               }
-              .padding(horizontal = 10.dp, vertical = 14.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-          ) {
-            Box(
-              modifier = Modifier
-                .size(64.dp)
-                .clip(CircleShape)
-                .background(Color.White),
-              contentAlignment = Alignment.Center,
-            ) {
-              Text(
-                text = org.name.split(" ").mapNotNull { it.firstOrNull()?.uppercaseChar()?.toString() }.take(2).joinToString(""),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold,
-                color = Color.Black,
-              )
-            }
-            Text(
-              text = org.name,
-              style = MaterialTheme.typography.bodySmall,
-              textAlign = TextAlign.Center,
-              maxLines = 2,
-              overflow = TextOverflow.Ellipsis,
-            )
-          }
+            },
+          )
         }
       }
     }

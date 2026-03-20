@@ -35,11 +35,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import sc.pirate.app.onboarding.steps.LocationResult
 import sc.pirate.app.onboarding.steps.searchLocations
-import sc.pirate.app.theme.PiratePalette
+import sc.pirate.app.theme.PirateTokens
 import sc.pirate.app.ui.PiratePrimaryButton
 
 @Composable
@@ -81,7 +80,7 @@ internal fun BasicsEditorSheet(
     )
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-      Text("Nationality", style = MaterialTheme.typography.bodyMedium, color = PiratePalette.TextMuted)
+      Text("Nationality", style = MaterialTheme.typography.bodyMedium, color = PirateTokens.colors.textSecondary)
       OutlinedTextField(
         value = if (nationalityFocused) nationalityQuery else selectedCountry.label,
         onValueChange = { nationalityQuery = it },
@@ -106,7 +105,7 @@ internal fun BasicsEditorSheet(
         },
       )
       if (nationalityFocused && filteredCountries.isNotEmpty()) {
-        Surface(color = Color(0xFF262626), shape = RoundedCornerShape(12.dp)) {
+        Surface(color = PirateTokens.colors.bgElevated, shape = RoundedCornerShape(PirateTokens.radius.lg)) {
           LazyColumn(
             modifier = Modifier
               .fillMaxWidth()
@@ -196,7 +195,7 @@ internal fun LocationEditorSheet(
     Text(
       "Search and pick your city. We keep this user-friendly and hash internals automatically.",
       style = MaterialTheme.typography.bodyMedium,
-      color = PiratePalette.TextMuted,
+      color = PirateTokens.colors.textSecondary,
     )
 
     OutlinedTextField(
@@ -223,12 +222,12 @@ internal fun LocationEditorSheet(
       Text(
         "Current: $initialLocationLabel",
         style = MaterialTheme.typography.bodyMedium,
-        color = PiratePalette.TextMuted,
+        color = PirateTokens.colors.textSecondary,
       )
     }
 
     if (suggestions.isNotEmpty()) {
-      Surface(color = Color(0xFF262626), shape = RoundedCornerShape(12.dp)) {
+      Surface(color = PirateTokens.colors.bgElevated, shape = RoundedCornerShape(PirateTokens.radius.lg)) {
         LazyColumn(
           modifier = Modifier
             .fillMaxWidth()

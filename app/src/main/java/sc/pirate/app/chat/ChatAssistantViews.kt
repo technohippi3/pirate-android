@@ -67,6 +67,7 @@ import sc.pirate.app.assistant.VoiceCallState
 import sc.pirate.app.assistant.asAssistantApiFailureOrNull
 import sc.pirate.app.assistant.formatCallSeconds
 import sc.pirate.app.theme.PiratePalette
+import sc.pirate.app.theme.PirateTokens
 import sc.pirate.app.ui.PirateMobileHeader
 import sc.pirate.app.ui.PiratePrimaryButton
 import sc.pirate.app.ui.PirateSheetTitle
@@ -77,8 +78,6 @@ internal fun AssistantConversationRow(
   lastMessage: String?,
   onClick: () -> Unit,
 ) {
-  val accentPurple = Color(0xFFCBA6F7)
-
   Row(
     modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 12.dp),
     verticalAlignment = Alignment.CenterVertically,
@@ -96,7 +95,7 @@ internal fun AssistantConversationRow(
       Text(
         text = "Violet",
         fontWeight = FontWeight.Medium,
-        color = accentPurple,
+        color = PirateTokens.colors.accentBrand,
       )
       Text(
         text = lastMessage ?: stringResource(R.string.assistant_intro_message),
@@ -130,7 +129,6 @@ internal fun AssistantThread(
   var showQuotaSheet by remember { mutableStateOf(false) }
   val listState = rememberLazyListState()
   val scope = rememberCoroutineScope()
-  val accentPurple = Color(0xFFCBA6F7)
 
   val micPermissionLauncher =
     rememberLauncherForActivityResult(
@@ -223,7 +221,7 @@ internal fun AssistantThread(
               Icon(
                 PhosphorIcons.Regular.PhoneCall,
                 contentDescription = "Voice call",
-                tint = accentPurple,
+                tint = PirateTokens.colors.accentBrand,
               )
             }
           }
@@ -258,7 +256,7 @@ internal fun AssistantThread(
             CircularProgressIndicator(
               modifier = Modifier.size(20.dp),
               strokeWidth = 2.dp,
-              color = accentPurple,
+              color = PirateTokens.colors.accentBrand,
             )
             Spacer(Modifier.width(8.dp))
             Text("Violet is thinking...", color = PiratePalette.TextMuted)
@@ -290,7 +288,7 @@ internal fun AssistantThread(
         Icon(
           PhosphorIcons.Regular.PaperPlaneRight,
           contentDescription = "Send",
-          tint = if (inputText.isNotBlank() && !sending) accentPurple else PiratePalette.TextMuted,
+          tint = if (inputText.isNotBlank() && !sending) PirateTokens.colors.accentBrand else PiratePalette.TextMuted,
         )
       }
     }

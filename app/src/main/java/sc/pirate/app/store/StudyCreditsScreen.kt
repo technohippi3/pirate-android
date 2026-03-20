@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,6 +36,7 @@ import sc.pirate.app.assistant.AssistantQuotaStatus
 import sc.pirate.app.assistant.formatCallSeconds
 import sc.pirate.app.ui.PirateMobileHeader
 import sc.pirate.app.ui.PiratePrimaryButton
+import sc.pirate.app.ui.PirateToggleChip
 import java.math.BigInteger
 import kotlinx.coroutines.launch
 
@@ -158,17 +158,11 @@ fun StudyCreditsScreen(
               horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
               CREDIT_PACKS.forEach { credits ->
-                FilterChip(
+                PirateToggleChip(
                   modifier = Modifier.weight(1f),
                   selected = selectedCredits == credits,
                   onClick = { selectedCredits = credits },
-                  label = {
-                    Text(
-                      text = "$credits",
-                      style = MaterialTheme.typography.titleMedium,
-                      fontWeight = if (selectedCredits == credits) FontWeight.SemiBold else FontWeight.Medium,
-                    )
-                  },
+                  label = "$credits",
                   enabled = !buying,
                 )
               }

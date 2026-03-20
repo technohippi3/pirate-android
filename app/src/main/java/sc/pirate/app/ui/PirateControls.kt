@@ -28,6 +28,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
+import sc.pirate.app.theme.PirateTokens
 
 object PirateButtonDefaults {
   val MinButtonHeight = 48.dp
@@ -42,7 +43,7 @@ fun PiratePrimaryButton(
   enabled: Boolean = true,
   loading: Boolean = false,
   containerColor: Color = MaterialTheme.colorScheme.primary,
-  disabledContainerColor: Color = containerColor.copy(alpha = 0.45f),
+  disabledContainerColor: Color = PirateTokens.colors.surfaceDisabled,
   leadingIcon: (@Composable () -> Unit)? = null,
 ) {
   Button(
@@ -53,9 +54,9 @@ fun PiratePrimaryButton(
     colors =
       ButtonDefaults.buttonColors(
         containerColor = containerColor,
-        contentColor = Color.White,
+        contentColor = PirateTokens.colors.textOnAccent,
         disabledContainerColor = disabledContainerColor,
-        disabledContentColor = Color.White.copy(alpha = 0.9f),
+        disabledContentColor = PirateTokens.colors.textOnAccent.copy(alpha = 0.9f),
       ),
   ) {
     if (loading) {
@@ -76,9 +77,15 @@ fun PirateOutlinedButton(
   modifier: Modifier = Modifier,
   enabled: Boolean = true,
   shape: Shape = MaterialTheme.shapes.medium,
-  colors: ButtonColors = ButtonDefaults.outlinedButtonColors(),
+  colors: ButtonColors =
+    ButtonDefaults.outlinedButtonColors(
+      containerColor = Color.Transparent,
+      contentColor = PirateTokens.colors.textPrimary,
+      disabledContainerColor = Color.Transparent,
+      disabledContentColor = PirateTokens.colors.textDisabled,
+    ),
   elevation: ButtonElevation? = null,
-  border: BorderStroke? = ButtonDefaults.outlinedButtonBorder(enabled),
+  border: BorderStroke? = BorderStroke(1.dp, PirateTokens.colors.borderSoft),
   contentPadding: PaddingValues = ButtonDefaults.ContentPadding,
   interactionSource: MutableInteractionSource? = null,
   content: @Composable RowScope.() -> Unit,
@@ -103,7 +110,11 @@ fun PirateTextButton(
   modifier: Modifier = Modifier,
   enabled: Boolean = true,
   shape: Shape = MaterialTheme.shapes.medium,
-  colors: ButtonColors = ButtonDefaults.textButtonColors(),
+  colors: ButtonColors =
+    ButtonDefaults.textButtonColors(
+      contentColor = PirateTokens.colors.accentBrand,
+      disabledContentColor = PirateTokens.colors.textDisabled,
+    ),
   elevation: ButtonElevation? = null,
   border: BorderStroke? = null,
   contentPadding: PaddingValues = ButtonDefaults.TextButtonContentPadding,
@@ -190,5 +201,21 @@ fun PirateOutlinedTextField(
     enabled = enabled,
     keyboardOptions = keyboardOptions,
     shape = MaterialTheme.shapes.medium,
+    colors =
+      androidx.compose.material3.OutlinedTextFieldDefaults.colors(
+        focusedBorderColor = PirateTokens.colors.accentBrand,
+        unfocusedBorderColor = PirateTokens.colors.borderDefault,
+        disabledBorderColor = PirateTokens.colors.borderSoft,
+        focusedTextColor = PirateTokens.colors.textPrimary,
+        unfocusedTextColor = PirateTokens.colors.textPrimary,
+        cursorColor = PirateTokens.colors.accentBrand,
+        focusedContainerColor = PirateTokens.colors.bgSurface,
+        unfocusedContainerColor = PirateTokens.colors.bgSurface,
+        disabledContainerColor = PirateTokens.colors.surfaceDisabled,
+        focusedLabelColor = PirateTokens.colors.textSecondary,
+        unfocusedLabelColor = PirateTokens.colors.textSecondary,
+        focusedPlaceholderColor = PirateTokens.colors.textSecondary,
+        unfocusedPlaceholderColor = PirateTokens.colors.textSecondary,
+      ),
   )
 }

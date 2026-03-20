@@ -63,6 +63,7 @@ import sc.pirate.app.resolvePublicProfileIdentityWithRetry
 import sc.pirate.app.theme.PiratePalette
 import sc.pirate.app.ui.PiratePrimaryButton
 import sc.pirate.app.ui.PirateSheetTitle
+import sc.pirate.app.theme.PirateTokens
 import sc.pirate.app.ui.PirateShimmer
 import sc.pirate.app.util.shortAddress
 import java.util.Locale
@@ -464,7 +465,7 @@ internal fun SongArtistPickerSheet(
   val artists = parseAllArtists(effectiveArtist.orEmpty())
   ModalBottomSheet(
     onDismissRequest = onDismiss,
-    containerColor = Color(0xFF1C1C1C),
+    containerColor = PirateTokens.colors.bgSurface,
   ) {
     Column(
       modifier =

@@ -16,6 +16,7 @@ import java.util.Calendar
 import java.util.Date
 import java.util.Locale
 import androidx.compose.ui.graphics.Color
+import sc.pirate.app.theme.PirateTokens
 
 internal fun bookingStatusLabel(status: BookingStatus): String = when (status) {
   BookingStatus.Live -> "Live"
@@ -25,17 +26,17 @@ internal fun bookingStatusLabel(status: BookingStatus): String = when (status) {
 }
 
 internal fun statusBgColor(status: BookingStatus): Color = when (status) {
-  BookingStatus.Live -> Color(0xFF89B4FA).copy(alpha = 0.15f)
-  BookingStatus.Upcoming -> Color(0xFFA3A3A3).copy(alpha = 0.15f)
-  BookingStatus.Completed -> Color(0xFF404040)
-  BookingStatus.Cancelled -> Color(0xFF404040)
+  BookingStatus.Live -> PirateTokens.darkColors.surfaceAccent
+  BookingStatus.Upcoming -> PirateTokens.darkColors.surfaceSubtle
+  BookingStatus.Completed -> PirateTokens.darkColors.surfaceInteractive
+  BookingStatus.Cancelled -> PirateTokens.darkColors.surfaceInteractive
 }
 
 internal fun statusFgColor(status: BookingStatus): Color = when (status) {
-  BookingStatus.Live -> Color(0xFF89B4FA)
-  BookingStatus.Upcoming -> Color(0xFFD4D4D4)
-  BookingStatus.Completed -> Color(0xFFA3A3A3)
-  BookingStatus.Cancelled -> Color(0xFFA3A3A3)
+  BookingStatus.Live -> PirateTokens.darkColors.accentBrand
+  BookingStatus.Upcoming -> PirateTokens.darkColors.textPrimary
+  BookingStatus.Completed -> PirateTokens.darkColors.textSecondary
+  BookingStatus.Cancelled -> PirateTokens.darkColors.textSecondary
 }
 
 internal fun hostSlotStatusToUi(status: HostSlotStatus): SlotStatus = when (status) {

@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import sc.pirate.app.R
+import sc.pirate.app.theme.PirateTokens
 import kotlinx.coroutines.delay
 
 @Composable
@@ -44,7 +45,7 @@ fun DoneStep(
       PhosphorIcons.Regular.CheckCircle,
       contentDescription = stringResource(R.string.onboarding_done_icon_description),
       modifier = Modifier.size(64.dp),
-      tint = Color(0xFFA6E3A1), // catppuccin green
+      tint = PirateTokens.colors.accentSuccess,
     )
     Spacer(Modifier.height(24.dp))
     Text(

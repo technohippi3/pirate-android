@@ -48,7 +48,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import sc.pirate.app.onboarding.steps.LANGUAGE_OPTIONS
-import sc.pirate.app.theme.PiratePalette
+import sc.pirate.app.theme.PirateTokens
 import sc.pirate.app.util.resolveAvatarUrl
 import sc.pirate.app.util.resolveProfileCoverUrl
 
@@ -59,7 +59,7 @@ internal fun SectionCard(
 ) {
   Surface(
     modifier = Modifier.fillMaxWidth(),
-    color = Color(0xFF1C1C1C),
+    color = PirateTokens.colors.bgSurface,
     shape = RoundedCornerShape(16.dp),
   ) {
     Column(
@@ -89,17 +89,17 @@ internal fun EditSummaryRow(
   ) {
     Column(modifier = Modifier.weight(1f)) {
       Text(title, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground)
-      Text(value, style = MaterialTheme.typography.bodyMedium, color = PiratePalette.TextMuted)
+      Text(value, style = MaterialTheme.typography.bodyMedium, color = PirateTokens.colors.textSecondary)
     }
     trailingPreview?.invoke()
     if (trailingPreview != null) Spacer(Modifier.width(10.dp))
     Icon(
       imageVector = PhosphorIcons.Regular.CaretRight,
       contentDescription = null,
-      tint = PiratePalette.TextMuted,
+      tint = PirateTokens.colors.textSecondary,
     )
   }
-  HorizontalDivider(color = Color(0xFF333333))
+  HorizontalDivider(color = PirateTokens.colors.borderSoft)
 }
 
 @Composable
@@ -110,7 +110,7 @@ internal fun ProfilePhotoSummaryPreview(
   Surface(
     modifier = Modifier.size(40.dp),
     shape = RoundedCornerShape(20.dp),
-    color = Color(0xFF262626),
+    color = PirateTokens.colors.bgElevated,
   ) {
     val resolved = resolveAvatarUrl(avatarUri)
     Box(contentAlignment = Alignment.Center) {
@@ -135,7 +135,7 @@ internal fun ProfilePhotoSummaryPreview(
           Icon(
             imageVector = PhosphorIcons.Regular.CameraPlus,
             contentDescription = null,
-            tint = PiratePalette.TextMuted,
+            tint = PirateTokens.colors.textSecondary,
             modifier = Modifier.size(20.dp),
           )
         }
@@ -151,8 +151,8 @@ internal fun ProfileCoverSummaryPreview(
 ) {
   Surface(
     modifier = Modifier.size(width = 64.dp, height = 40.dp),
-    shape = RoundedCornerShape(12.dp),
-    color = Color(0xFF262626),
+    shape = RoundedCornerShape(PirateTokens.radius.lg),
+    color = PirateTokens.colors.bgElevated,
   ) {
     val resolved = resolveProfileCoverUrl(coverUri)
     Box(contentAlignment = Alignment.Center) {
@@ -177,7 +177,7 @@ internal fun ProfileCoverSummaryPreview(
           Icon(
             imageVector = PhosphorIcons.Regular.ImageSquare,
             contentDescription = null,
-            tint = PiratePalette.TextMuted,
+            tint = PirateTokens.colors.textSecondary,
             modifier = Modifier.size(20.dp),
           )
         }
@@ -195,7 +195,7 @@ internal fun LabeledTextField(
   onValueChange: (String) -> Unit,
 ) {
   Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-    Text(label, style = MaterialTheme.typography.bodyMedium, color = PiratePalette.TextMuted)
+    Text(label, style = MaterialTheme.typography.bodyMedium, color = PirateTokens.colors.textSecondary)
     OutlinedTextField(
       value = value,
       onValueChange = onValueChange,
@@ -232,7 +232,7 @@ internal fun FriendsMaskField(
   onValueChange: (Int) -> Unit,
 ) {
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    Text("Open to dating", style = MaterialTheme.typography.bodyMedium, color = PiratePalette.TextMuted)
+    Text("Open to dating", style = MaterialTheme.typography.bodyMedium, color = PirateTokens.colors.textSecondary)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       FriendsMaskChip(
         label = "Men",
@@ -284,7 +284,7 @@ internal fun EnumDropdownField(
   val selected = options.firstOrNull { it.value == value } ?: options.first()
 
   Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-    Text(label, style = MaterialTheme.typography.bodyMedium, color = PiratePalette.TextMuted)
+    Text(label, style = MaterialTheme.typography.bodyMedium, color = PirateTokens.colors.textSecondary)
     ExposedDropdownMenuBox(
       expanded = expanded,
       onExpandedChange = { expanded = it },
@@ -323,7 +323,7 @@ internal fun LanguageEditor(
   onChange: (List<ProfileLanguageEntry>) -> Unit,
 ) {
   Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-    Text("Languages", style = MaterialTheme.typography.bodyMedium, color = PiratePalette.TextMuted)
+    Text("Languages", style = MaterialTheme.typography.bodyMedium, color = PirateTokens.colors.textSecondary)
 
     entries.forEachIndexed { index, entry ->
       val usedCodes = entries
@@ -331,8 +331,8 @@ internal fun LanguageEditor(
         .toSet()
 
       Surface(
-        color = Color(0xFF262626),
-        shape = RoundedCornerShape(12.dp),
+        color = PirateTokens.colors.bgElevated,
+        shape = RoundedCornerShape(PirateTokens.radius.lg),
         modifier = Modifier.fillMaxWidth(),
       ) {
         Row(

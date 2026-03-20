@@ -38,6 +38,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import sc.pirate.app.theme.PirateTokens
 import androidx.compose.foundation.rememberScrollState
 import sc.pirate.app.theme.PiratePalette
 import sc.pirate.app.ui.PiratePrimaryButton
@@ -220,9 +221,9 @@ internal fun AvailabilitySwitchRow(
     }
   Surface(
     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp),
-    shape = RoundedCornerShape(12.dp),
-    color = MaterialTheme.colorScheme.surface,
-    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+    shape = RoundedCornerShape(PirateTokens.radius.lg),
+    color = PirateTokens.colors.bgSurface,
+    border = BorderStroke(1.dp, PirateTokens.colors.borderSoft),
   ) {
     Row(
       modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp).clickable(enabled = enabled) { onRowClick() },

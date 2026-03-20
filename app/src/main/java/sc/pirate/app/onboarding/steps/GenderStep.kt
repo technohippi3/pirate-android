@@ -1,6 +1,5 @@
 package sc.pirate.app.onboarding.steps
 
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -10,9 +9,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -28,6 +24,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import sc.pirate.app.R
 import sc.pirate.app.ui.PiratePrimaryButton
+import sc.pirate.app.ui.PirateToggleChip
+import sc.pirate.app.ui.PirateToggleChipVariant
 
 // Matches ProfileV2.sol enum Gender { Unset, Woman, Man, NonBinary, TransWoman, TransMan, Intersex, Other }
 private val GENDER_OPTIONS = listOf(
@@ -78,17 +76,11 @@ fun GenderStep(
       verticalArrangement = Arrangement.spacedBy(10.dp),
     ) {
       GENDER_OPTIONS.forEach { value ->
-        FilterChip(
+        PirateToggleChip(
           selected = selected == value,
           onClick = { selected = if (selected == value) null else value },
-          label = { Text(stringResource(genderLabelRes(value)), fontSize = 16.sp) },
-          shape = RoundedCornerShape(50),
-          border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = selected == value,
-            borderColor = MaterialTheme.colorScheme.outline,
-            selectedBorderColor = MaterialTheme.colorScheme.primary,
-          ),
+          label = stringResource(genderLabelRes(value)),
+          variant = PirateToggleChipVariant.Card,
         )
       }
     }

@@ -18,10 +18,9 @@ import androidx.compose.material3.Text
 import sc.pirate.app.ui.PirateTextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import sc.pirate.app.theme.PiratePalette
+import sc.pirate.app.theme.PirateTokens
 import sc.pirate.app.ui.PiratePrimaryButton
 import java.util.Locale
 
@@ -37,7 +36,7 @@ internal fun AboutPanel(
   onRetry: () -> Unit,
 ) {
   if (loading) {
-    CenteredStatus { CircularProgressIndicator(Modifier.size(32.dp)); Spacer(Modifier.height(12.dp)); Text("Loading profile fields...", color = PiratePalette.TextMuted) }
+    CenteredStatus { CircularProgressIndicator(Modifier.size(32.dp)); Spacer(Modifier.height(12.dp)); Text("Loading profile fields...", color = PirateTokens.colors.textSecondary) }
     return
   }
   if (!error.isNullOrBlank()) {
@@ -52,7 +51,7 @@ internal fun AboutPanel(
     CenteredStatus {
       Text(
         if (isOwnProfile) "No on-chain profile fields yet." else "No profile fields yet.",
-        color = PiratePalette.TextMuted,
+        color = PirateTokens.colors.textSecondary,
       )
       if (isOwnProfile && onEditProfile != null) {
         Spacer(Modifier.height(12.dp))
@@ -134,7 +133,7 @@ internal fun AboutPanel(
       item {
         Text(
           "No populated fields yet.",
-          color = PiratePalette.TextMuted,
+          color = PirateTokens.colors.textSecondary,
           style = MaterialTheme.typography.bodyLarge,
           modifier = Modifier.padding(8.dp),
         )
@@ -150,7 +149,7 @@ internal fun AboutSectionCard(
 ) {
   Surface(
     modifier = Modifier.fillMaxWidth(),
-    color = Color(0xFF1C1C1C),
+    color = PirateTokens.colors.bgSurface,
     shape = RoundedCornerShape(14.dp),
   ) {
     Column(
@@ -159,8 +158,8 @@ internal fun AboutSectionCard(
     ) {
       Text(title, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
       rows.forEachIndexed { index, row ->
-        if (index > 0) HorizontalDivider(color = Color(0xFF2A2A2A))
-        Text(row.first, style = MaterialTheme.typography.labelLarge, color = PiratePalette.TextMuted)
+        if (index > 0) HorizontalDivider(color = PirateTokens.colors.borderSoft)
+        Text(row.first, style = MaterialTheme.typography.labelLarge, color = PirateTokens.colors.textSecondary)
         Text(row.second, style = MaterialTheme.typography.bodyLarge, color = MaterialTheme.colorScheme.onBackground)
       }
     }

@@ -17,11 +17,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import sc.pirate.app.theme.PiratePalette
+import sc.pirate.app.theme.PirateTokens
 import sc.pirate.app.ui.PiratePrimaryButton
 
 @Composable
@@ -37,7 +36,7 @@ internal fun UpcomingSessionsSection(
     Text(
       "Loading schedule...",
       modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp),
-      color = PiratePalette.TextMuted,
+      color = PirateTokens.colors.textSecondary,
       style = MaterialTheme.typography.bodyLarge,
       textAlign = TextAlign.Center,
     )
@@ -48,7 +47,7 @@ internal fun UpcomingSessionsSection(
     Text(
       "No scheduled sessions right now.",
       modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 24.dp),
-      color = PiratePalette.TextMuted,
+      color = PirateTokens.colors.textSecondary,
       style = MaterialTheme.typography.bodyLarge,
       textAlign = TextAlign.Center,
     )
@@ -61,13 +60,13 @@ internal fun UpcomingSessionsSection(
     val canCancel = isAuthenticated && !isCancelling && (booking.status == BookingStatus.Upcoming || booking.status == BookingStatus.Live)
     Card(
       modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp),
-      shape = RoundedCornerShape(12.dp),
-      colors = CardDefaults.cardColors(containerColor = Color(0xFF1C1C1C)),
-      border = BorderStroke(1.dp, Color(0xFF363636)),
+      shape = RoundedCornerShape(PirateTokens.radius.lg),
+      colors = CardDefaults.cardColors(containerColor = PirateTokens.colors.bgSurface),
+      border = BorderStroke(1.dp, PirateTokens.colors.borderSoft),
     ) {
       Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-          Text(booking.peerName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = Color(0xFFFAFAFA))
+          Text(booking.peerName, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold, color = PirateTokens.colors.textPrimary)
           Surface(
             color = statusBgColor(booking.status),
             shape = RoundedCornerShape(999.dp),
@@ -85,12 +84,12 @@ internal fun UpcomingSessionsSection(
         Text(
           text = formatDateTime(booking.startTimeMillis),
           style = MaterialTheme.typography.bodyLarge,
-          color = Color(0xFFD4D4D4),
+          color = PirateTokens.colors.textPrimary,
         )
         Text(
           text = "${booking.durationMinutes} min · $${booking.amountUsd}",
           style = MaterialTheme.typography.bodyLarge,
-          color = Color(0xFFA3A3A3),
+          color = PirateTokens.colors.textSecondary,
         )
 
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -126,11 +125,11 @@ internal fun AvailabilityHeaderCard(
 ) {
   Card(
     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
-    shape = RoundedCornerShape(12.dp),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+    shape = RoundedCornerShape(PirateTokens.radius.lg),
+    colors = CardDefaults.cardColors(containerColor = PirateTokens.colors.bgSurface),
   ) {
     Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-      Text("Base Price", style = MaterialTheme.typography.bodyLarge, color = PiratePalette.TextMuted)
+      Text("Base Price", style = MaterialTheme.typography.bodyLarge, color = PirateTokens.colors.textSecondary)
       if (editingPrice) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
           OutlinedTextField(value = editValue, onValueChange = onPriceChange, singleLine = true, label = { Text("aUSD") }, enabled = isAuthenticated && !busy, modifier = Modifier.weight(1f))
@@ -144,7 +143,7 @@ internal fun AvailabilityHeaderCard(
       } else {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
           if (loading) {
-            Text("Loading...", style = MaterialTheme.typography.headlineSmall, color = PiratePalette.TextMuted)
+            Text("Loading...", style = MaterialTheme.typography.headlineSmall, color = PirateTokens.colors.textSecondary)
           } else {
             Text("$${basePrice ?: DEFAULT_BASE_PRICE}", style = MaterialTheme.typography.headlineSmall)
           }

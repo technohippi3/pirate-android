@@ -46,6 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import sc.pirate.app.theme.PirateTokens
 
 @Composable
 internal fun PublishingStep(progress: Float) {
@@ -127,10 +128,15 @@ internal fun ErrorStep(
         Modifier
           .size(64.dp)
           .clip(CircleShape)
-          .background(Color(0xFFF44336)),
+          .background(PirateTokens.colors.accentDanger),
       contentAlignment = Alignment.Center,
     ) {
-      Icon(PhosphorIcons.Regular.Warning, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
+      Icon(
+        PhosphorIcons.Regular.Warning,
+        contentDescription = null,
+        tint = PirateTokens.colors.textOnAccent,
+        modifier = Modifier.size(36.dp),
+      )
     }
 
     Spacer(modifier = Modifier.height(16.dp))

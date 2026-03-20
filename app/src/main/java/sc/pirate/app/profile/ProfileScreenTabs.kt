@@ -14,10 +14,10 @@ import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
 import androidx.compose.runtime.Composable
 import androidx.compose.foundation.layout.size
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import sc.pirate.app.music.OnChainPlaylist
+import sc.pirate.app.theme.PirateTokens
 
 internal enum class ProfileTab(val icon: ImageVector, val contentDescription: String) {
   Songs(PhosphorIcons.Regular.MusicNote, "Songs"),
@@ -35,8 +35,8 @@ internal fun ProfileScreenTabBar(
 ) {
   TabRow(
     selectedTabIndex = selectedTab,
-    containerColor = Color(0xFF1C1C1C),
-    contentColor = Color.White,
+    containerColor = PirateTokens.colors.bgSurface,
+    contentColor = PirateTokens.colors.textPrimary,
     indicator = { tabPositions ->
       if (selectedTab < tabPositions.size) {
         TabRowDefaults.SecondaryIndicator(
@@ -45,7 +45,7 @@ internal fun ProfileScreenTabBar(
         )
       }
     },
-    divider = { HorizontalDivider(color = Color(0xFF363636)) },
+    divider = { HorizontalDivider(color = PirateTokens.colors.borderSoft) },
   ) {
     tabs.forEachIndexed { index, tab ->
       Tab(
@@ -56,7 +56,7 @@ internal fun ProfileScreenTabBar(
             imageVector = tab.icon,
             contentDescription = tab.contentDescription,
             modifier = Modifier.size(26.dp),
-            tint = if (selectedTab == index) Color.White else Color(0xFFA3A3A3),
+            tint = if (selectedTab == index) PirateTokens.colors.textPrimary else PirateTokens.colors.textSecondary,
           )
         },
       )

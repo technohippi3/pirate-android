@@ -10,10 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -29,6 +26,8 @@ import sc.pirate.app.R
 import sc.pirate.app.onboarding.OnboardingArtist
 import sc.pirate.app.onboarding.POPULAR_ARTISTS
 import sc.pirate.app.ui.PiratePrimaryButton
+import sc.pirate.app.ui.PirateToggleChip
+import sc.pirate.app.ui.PirateToggleChipVariant
 
 private const val MIN_ARTISTS = 3
 
@@ -74,32 +73,14 @@ fun MusicStep(
     ) {
       POPULAR_ARTISTS.forEach { artist ->
         val isSelected = artist.mbid in selectedMbids
-        FilterChip(
+        PirateToggleChip(
           selected = isSelected,
           onClick = {
             if (isSelected) selectedMbids.remove(artist.mbid)
             else selectedMbids.add(artist.mbid)
           },
-          label = {
-            Text(
-              artist.name,
-              fontSize = 16.sp,
-              fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-            )
-          },
-          shape = RoundedCornerShape(50),
-          colors = FilterChipDefaults.filterChipColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant,
-            labelColor = MaterialTheme.colorScheme.onSurfaceVariant,
-            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer,
-          ),
-          border = FilterChipDefaults.filterChipBorder(
-            enabled = true,
-            selected = isSelected,
-            borderColor = MaterialTheme.colorScheme.outline,
-            selectedBorderColor = MaterialTheme.colorScheme.primary,
-          ),
+          label = artist.name,
+          variant = PirateToggleChipVariant.Card,
         )
       }
     }

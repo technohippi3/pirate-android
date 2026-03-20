@@ -10,7 +10,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.NavType
 import androidx.navigation.navArgument
@@ -20,6 +19,7 @@ import sc.pirate.app.profile.FollowListScreen
 import sc.pirate.app.profile.ProfileEditScreen
 import sc.pirate.app.profile.ProfileScreen
 import sc.pirate.app.tempo.TempoPasskeyManager
+import sc.pirate.app.theme.PirateTokens
 import kotlinx.coroutines.launch
 
 internal fun NavGraphBuilder.registerProfileRoutes(context: PirateNavHostContext) {
@@ -155,7 +155,7 @@ internal fun NavGraphBuilder.registerProfileRoutes(context: PirateNavHostContext
     val address = context.activeAddress
     if (!context.authState.hasTempoCredentials() || address.isNullOrBlank()) {
       Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Sign in with Tempo passkey to edit your profile", color = Color(0xFFA3A3A3))
+        Text("Sign in with Tempo passkey to edit your profile", color = PirateTokens.colors.textSecondary)
       }
     } else {
       ProfileEditScreen(

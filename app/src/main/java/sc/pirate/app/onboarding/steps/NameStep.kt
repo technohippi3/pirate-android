@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -27,8 +26,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import sc.pirate.app.R
+import sc.pirate.app.theme.PirateTokens
 import sc.pirate.app.ui.PirateOutlinedTextField
 import sc.pirate.app.ui.PiratePrimaryButton
+import sc.pirate.app.ui.PirateToggleChip
 import kotlinx.coroutines.delay
 
 private const val MIN_LABEL_LENGTH = 3
@@ -106,16 +107,8 @@ fun NameStep(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
       ) {
-        FilterChip(
-          selected = selectedTld == "heaven",
-          onClick = { onTldChange("heaven") },
-          label = { Text(".heaven") },
-        )
-        FilterChip(
-          selected = selectedTld == "pirate",
-          onClick = { onTldChange("pirate") },
-          label = { Text(".pirate") },
-        )
+        PirateToggleChip(selected = selectedTld == "heaven", onClick = { onTldChange("heaven") }, label = ".heaven")
+        PirateToggleChip(selected = selectedTld == "pirate", onClick = { onTldChange("pirate") }, label = ".pirate")
       }
       Spacer(Modifier.height(14.dp))
     }
@@ -146,7 +139,11 @@ fun NameStep(
           )
         }
         available == true -> {
-          Text("✓ ${stringResource(R.string.onboarding_name_available)}", fontSize = 14.sp, color = Color(0xFFA6E3A1))
+          Text(
+            "✓ ${stringResource(R.string.onboarding_name_available)}",
+            fontSize = 14.sp,
+            color = PirateTokens.colors.accentSuccess,
+          )
         }
         checkError != null -> {
           Text(checkError!!, fontSize = 14.sp, color = MaterialTheme.colorScheme.error)

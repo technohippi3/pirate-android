@@ -130,6 +130,17 @@ android {
 
   }
 
+  flavorDimensions += "distribution"
+
+  productFlavors {
+    create("standard") {
+      dimension = "distribution"
+    }
+    create("fdroid") {
+      dimension = "distribution"
+    }
+  }
+
   buildTypes {
     release {
       signingConfig = signingConfigs.findByName("release")
@@ -141,6 +152,7 @@ android {
       )
     }
     debug {
+      signingConfig = signingConfigs.findByName("release")
       isMinifyEnabled = false
     }
   }
@@ -200,7 +212,7 @@ dependencies {
   implementation("org.web3j:crypto:4.12.2")
 
   // Agora RTC (voice calls)
-  implementation("io.agora.rtc:full-sdk:4.5.1")
+  add("standardImplementation", "io.agora.rtc:full-sdk:4.5.1")
 
   // XMTP messaging
   implementation("org.xmtp:android:4.9.0")

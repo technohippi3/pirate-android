@@ -31,6 +31,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import sc.pirate.app.theme.PiratePalette
+import sc.pirate.app.ui.PirateBadge
+import sc.pirate.app.ui.PirateBadgeSize
+import sc.pirate.app.ui.PirateBadgeTone
 
 @Composable
 internal fun EntryRow(
@@ -76,18 +79,7 @@ internal fun EntryRow(
     }
 
     if (!badge.isNullOrBlank()) {
-      Surface(
-        color = MaterialTheme.colorScheme.primary,
-        shape = MaterialTheme.shapes.extraLarge,
-      ) {
-        Text(
-          badge,
-          modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-          color = MaterialTheme.colorScheme.onPrimary,
-          style = MaterialTheme.typography.labelMedium,
-          fontWeight = FontWeight.SemiBold,
-        )
-      }
+      PirateBadge(text = badge, tone = PirateBadgeTone.Brand, size = PirateBadgeSize.Count)
     } else {
       Icon(
         PhosphorIcons.Regular.CaretRight,

@@ -33,12 +33,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
-import sc.pirate.app.theme.PiratePalette
+import sc.pirate.app.theme.PirateTokens
 import sc.pirate.app.ui.PiratePrimaryButton
 import sc.pirate.app.util.resolveAvatarUrl
 import sc.pirate.app.util.resolveProfileCoverUrl
@@ -93,7 +92,7 @@ internal fun PhotoEditorSheet(
           .size(124.dp)
           .align(Alignment.CenterHorizontally),
       shape = RoundedCornerShape(62.dp),
-      color = Color(0xFF262626),
+      color = PirateTokens.colors.bgElevated,
     ) {
       val resolved = resolveAvatarUrl(avatarUri)
       Box(contentAlignment = Alignment.Center) {
@@ -118,7 +117,7 @@ internal fun PhotoEditorSheet(
             Icon(
               imageVector = PhosphorIcons.Regular.CameraPlus,
               contentDescription = null,
-              tint = PiratePalette.TextMuted,
+              tint = PirateTokens.colors.textSecondary,
               modifier = Modifier.size(30.dp),
             )
           }
@@ -127,7 +126,7 @@ internal fun PhotoEditorSheet(
     }
     Text(
       "Pick an image and we will upload it to IPFS through Pirate API.",
-      color = PiratePalette.TextMuted,
+      color = PirateTokens.colors.textSecondary,
       style = MaterialTheme.typography.bodyMedium,
     )
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -177,7 +176,7 @@ internal fun CoverEditorSheet(
           .height(132.dp)
           .align(Alignment.CenterHorizontally),
       shape = RoundedCornerShape(22.dp),
-      color = Color(0xFF262626),
+      color = PirateTokens.colors.bgElevated,
     ) {
       val resolved = resolveProfileCoverUrl(coverUri)
       Box(contentAlignment = Alignment.Center) {
@@ -202,7 +201,7 @@ internal fun CoverEditorSheet(
             Icon(
               imageVector = PhosphorIcons.Regular.ImageSquare,
               contentDescription = null,
-              tint = PiratePalette.TextMuted,
+              tint = PirateTokens.colors.textSecondary,
               modifier = Modifier.size(30.dp),
             )
           }
@@ -211,7 +210,7 @@ internal fun CoverEditorSheet(
     }
     Text(
       "Pick a wide image and we will upload it to IPFS through Pirate API.",
-      color = PiratePalette.TextMuted,
+      color = PirateTokens.colors.textSecondary,
       style = MaterialTheme.typography.bodyMedium,
     )
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {

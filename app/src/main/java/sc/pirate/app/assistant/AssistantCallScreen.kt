@@ -43,9 +43,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-
-private val AccentPurple = Color(0xFFCBA6F7)
-private val EndCallRed = Color(0xFFE57373)
+import sc.pirate.app.theme.PirateTokens
 
 @Composable
 fun AssistantCallScreen(
@@ -118,7 +116,7 @@ fun AssistantCallScreen(
       text = "Violet",
       style = MaterialTheme.typography.headlineMedium,
       fontWeight = FontWeight.Bold,
-      color = AccentPurple,
+      color = PirateTokens.colors.accentBrand,
     )
 
     Spacer(modifier = Modifier.height(8.dp))
@@ -195,7 +193,7 @@ fun AssistantCallScreen(
         Surface(
           modifier = Modifier.size(64.dp),
           shape = CircleShape,
-          color = EndCallRed,
+          color = PirateTokens.colors.accentDanger,
         ) {
           IconButton(
             onClick = { controller.endCall() },
@@ -204,7 +202,7 @@ fun AssistantCallScreen(
             Icon(
               PhosphorIcons.Regular.PhoneX,
               contentDescription = "End call",
-              tint = Color.White,
+              tint = PirateTokens.colors.textOnAccent,
               modifier = Modifier.size(28.dp),
             )
           }
@@ -238,7 +236,7 @@ private fun BigSpeakingAvatar(isBotSpeaking: Boolean, isConnecting: Boolean) {
           .size(160.dp)
           .alpha(pulseAlpha * 0.3f),
         shape = CircleShape,
-        color = AccentPurple,
+        color = PirateTokens.colors.accentBrand,
       ) {}
     }
 
@@ -247,7 +245,7 @@ private fun BigSpeakingAvatar(isBotSpeaking: Boolean, isConnecting: Boolean) {
         .size(128.dp)
         .then(if (isBotSpeaking) Modifier.alpha(pulseAlpha) else Modifier),
       shape = CircleShape,
-      color = AccentPurple,
+      color = PirateTokens.colors.accentBrand,
     ) {
       Box(contentAlignment = Alignment.Center) {
         if (isConnecting) {

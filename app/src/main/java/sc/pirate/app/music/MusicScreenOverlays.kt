@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import sc.pirate.app.music.ui.AddToPlaylistSheet
 import sc.pirate.app.music.ui.CreatePlaylistSheet
+import sc.pirate.app.theme.PirateTokens
 import sc.pirate.app.util.shortAddress
 import kotlinx.coroutines.launch
 
@@ -39,9 +40,10 @@ internal fun CloudPlayBusyBanner(
   Surface(
     modifier = Modifier
       .padding(horizontal = 16.dp, vertical = 18.dp),
-    color = MaterialTheme.colorScheme.surface,
+    color = PirateTokens.colors.bgElevated,
     shape = MaterialTheme.shapes.extraLarge,
-    shadowElevation = 4.dp,
+    tonalElevation = 0.dp,
+    shadowElevation = PirateTokens.shadow.sm,
   ) {
     Row(
       modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
@@ -55,7 +57,7 @@ internal fun CloudPlayBusyBanner(
       )
       Text(
         text = cloudPlayLabel ?: "Decrypting...",
-        color = MaterialTheme.colorScheme.onSurface,
+        color = PirateTokens.colors.textPrimary,
         style = MaterialTheme.typography.bodyMedium,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,

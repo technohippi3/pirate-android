@@ -16,7 +16,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -28,6 +27,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import sc.pirate.app.theme.PirateTokens
+import sc.pirate.app.ui.PirateToggleChip
 import sc.pirate.app.ui.PirateMobileHeader
 import sc.pirate.app.ui.PiratePrimaryButton
 
@@ -102,16 +103,8 @@ internal fun NameStoreContent(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
       ) {
-        FilterChip(
-          selected = selectedTld == "heaven",
-          onClick = { onSelectTld("heaven") },
-          label = { Text(".heaven") },
-        )
-        FilterChip(
-          selected = selectedTld == "pirate",
-          onClick = { onSelectTld("pirate") },
-          label = { Text(".pirate") },
-        )
+        PirateToggleChip(selected = selectedTld == "heaven", onClick = { onSelectTld("heaven") }, label = ".heaven")
+        PirateToggleChip(selected = selectedTld == "pirate", onClick = { onSelectTld("pirate") }, label = ".pirate")
       }
       Spacer(Modifier.height(20.dp))
 
@@ -140,7 +133,7 @@ internal fun NameStoreContent(
               Text(
                 "✓ Ready — ${customResult.price}",
                 fontSize = 16.sp,
-                color = Color(0xFFA6E3A1),
+                color = PirateTokens.colors.accentSuccess,
               )
             }
             customError != null -> {
