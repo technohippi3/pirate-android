@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -892,9 +894,10 @@ fun HomeFeedScreen(
         )
       }
     } else {
+      val hasError = !sessionState.loadError.isNullOrBlank()
       val message =
         when {
-          !sessionState.loadError.isNullOrBlank() -> "Feed unavailable: ${sessionState.loadError.orEmpty()}"
+          hasError -> sessionState.loadError.orEmpty()
           sessionState.isLoading -> ""
           else -> "No active posts yet."
         }
@@ -903,13 +906,29 @@ fun HomeFeedScreen(
         contentAlignment = Alignment.Center,
       ) {
         if (message.isNotBlank()) {
-          Text(
-            text = message,
-            color = Color.White.copy(alpha = 0.92f),
-            style = MaterialTheme.typography.bodyMedium,
-            maxLines = 3,
-            overflow = TextOverflow.Ellipsis,
-          )
+          Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+          ) {
+            Text(
+              text = message,
+              color = Color.White.copy(alpha = 0.92f),
+              style = MaterialTheme.typography.bodyMedium,
+              maxLines = 3,
+              overflow = TextOverflow.Ellipsis,
+            )
+            if (hasError) {
+              Spacer(modifier = Modifier.height(16.dp))
+              Button(
+                onClick = { sessionState.retry() },
+                colors = ButtonDefaults.buttonColors(
+                  containerColor = Color.White.copy(alpha = 0.15f),
+                  contentColor = Color.White,
+                ),
+              ) {
+                Text("Try Again")
+              }
+            }
+          }
         }
       }
     }

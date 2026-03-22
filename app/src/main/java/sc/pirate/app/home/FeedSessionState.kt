@@ -1,6 +1,7 @@
 package sc.pirate.app.home
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -41,6 +42,24 @@ class FeedSessionState(
     scope.launch { ensureTailCapacity(forceInitial = true) }
   }
 
+  fun retry() {
+    scope.launch {
+      loadMutex.withLock {
+        loadError = null
+        lastFetchCursor = null
+        hasMoreFromServer = true
+        candidatePool.clear()
+        candidateIds.clear()
+        rankedQueue.clear()
+        feedItems = emptyList()
+        servedSet.clear()
+        emittedUniqueIds.clear()
+        currentVisibleIndex = 0
+      }
+      ensureTailCapacity(forceInitial = true)
+    }
+  }
+
   fun onPageVisible(index: Int) {
     if (index < 0) return
     currentVisibleIndex = maxOf(currentVisibleIndex, index)
@@ -69,7 +88,8 @@ class FeedSessionState(
           appendFromQueue(batchSize = APPEND_BATCH_SIZE)
         }
       } catch (error: Throwable) {
-        loadError = error.message ?: "Failed to load feed"
+        Log.w("FeedSessionState", "Feed load failed", error)
+        loadError = friendlyFeedError(error)
       } finally {
         isLoading = false
       }
@@ -151,6 +171,15 @@ class FeedSessionState(
   }
 
   private companion object {
+    fun friendlyFeedError(error: Throwable): String {
+      if (error is java.io.IOException) return "Can't load the feed. Check your connection and try again."
+      val msg = error.message?.lowercase().orEmpty()
+      return if (msg.contains("timeout") || msg.contains("connection"))
+        "Can't load the feed. Check your connection and try again."
+      else
+        "Feed unavailable right now. Try again in a moment."
+    }
+
     const val FETCH_PAGE_SIZE = 50
     const val CANDIDATE_POOL_TARGET = 50
     const val APPEND_BATCH_SIZE = 10
