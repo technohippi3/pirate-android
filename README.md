@@ -36,6 +36,7 @@ Common commands:
 ./scripts/androidw.sh :app:compileDebugKotlin
 ./scripts/androidw.sh assembleDebug
 ./scripts/androidw.sh installDebug
+./scripts/androidw.sh :app:bundleStandardRelease
 ```
 
 F-Droid flavor commands:
@@ -53,6 +54,27 @@ PIRATE_ANDROID_SLOW=1 PIRATE_ANDROID_MAX_WORKERS=1 ./scripts/androidw.sh :app:co
 ```
 
 `PIRATE_ANDROID_SLOW=1` disables Gradle parallel builds and caps workers to `2` by default. Override with `PIRATE_ANDROID_MAX_WORKERS=<n>` when you want an even gentler build.
+
+Play Store bundle build (`.aab`):
+
+```bash
+./scripts/androidw.sh :app:bundleStandardRelease
+```
+
+Lower-impact Play Store bundle build:
+
+```bash
+./scripts/androidw.sh \
+  --no-daemon \
+  -Dorg.gradle.parallel=false \
+  -Dorg.gradle.workers.max=1 \
+  -Dorg.gradle.priority=low \
+  -Dorg.gradle.jvmargs='-Xmx3072m -Dfile.encoding=UTF-8' \
+  :app:bundleStandardRelease
+```
+
+Bundle output:
+- `app/build/outputs/bundle/standardRelease/app-standard-release.aab`
 
 APK output:
 - `apps/android/app/build/outputs/apk/debug/app-debug.apk`
