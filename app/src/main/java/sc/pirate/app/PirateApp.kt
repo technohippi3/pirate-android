@@ -227,7 +227,10 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
     showBottomChromeForRoute(currentRoute = currentRoute, chatThreadOpen = chatThreadOpen) &&
       !hideBottomChromeForMusicSubview &&
       !hideBottomChromeForLearnSession
-  val miniPlayerVisible = miniPlayerTrack != null && currentRoute != PirateRoute.Home.route
+  val miniPlayerVisible =
+    miniPlayerTrack != null &&
+      currentRoute != PirateRoute.Home.route &&
+      !learnSessionActive
   val showMiniPlayerForMusicSubviewOnly =
     hideBottomChromeForMusicSubview &&
       !hideBottomChromeForLearnSession &&

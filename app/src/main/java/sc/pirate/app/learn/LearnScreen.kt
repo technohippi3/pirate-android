@@ -122,6 +122,7 @@ private fun createSessionNonce(): String = "${System.currentTimeMillis()}:${(Mat
 fun LearnScreen(
   isAuthenticated: Boolean,
   userAddress: String?,
+  authBusy: Boolean = false,
   initialStudySetRef: String? = null,
   initialTrackId: String? = null,
   initialLanguage: String? = null,
@@ -134,6 +135,8 @@ fun LearnScreen(
   onLearnSessionVisibilityChange: (Boolean) -> Unit = {},
   onExitToLearn: () -> Unit = {},
   onOpenStudySet: (String?, String?, String?, Int, String?, String?) -> Unit = { _, _, _, _, _, _ -> },
+  onRegister: () -> Unit = {},
+  onLogin: () -> Unit = {},
   onOpenDrawer: () -> Unit,
   onShowMessage: (String) -> Unit,
 ) {
@@ -1866,7 +1869,10 @@ fun LearnScreen(
   LearnScreenBody(
     isAuthenticated = isAuthenticated,
     userAddress = userAddress,
+    authBusy = authBusy,
     onOpenDrawer = onOpenDrawer,
+    onRegister = onRegister,
+    onLogin = onLogin,
     songs = songs,
     globalStreakDays = globalStreakDays,
     summariesLoading = summariesLoading,

@@ -208,6 +208,7 @@ internal fun NavGraphBuilder.registerPrimaryRoutes(context: PirateNavHostContext
     LearnScreen(
       isAuthenticated = isAuthenticated,
       userAddress = context.activeAddress,
+      authBusy = context.authState.busy,
       miniPlayerVisible = context.miniPlayerVisible,
       hostActivity = context.activity,
       tempoAccount = context.tempoAccount,
@@ -224,6 +225,8 @@ internal fun NavGraphBuilder.registerPrimaryRoutes(context: PirateNavHostContext
           ),
         ) { launchSingleTop = true }
       },
+      onRegister = context.onRegister,
+      onLogin = context.onLogin,
       onOpenDrawer = context.onOpenDrawer,
       onShowMessage = context.onShowMessage,
     )
