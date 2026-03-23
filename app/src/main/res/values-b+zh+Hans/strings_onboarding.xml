@@ -54,10 +54,6 @@
   <string name="onboarding_languages_level_label">等级</string>
   <string name="onboarding_languages_remove_content_description">移除语言</string>
 
-  <string name="onboarding_music_title">选择你喜欢的歌手</string>
-  <string name="onboarding_music_remaining">至少再选 %1$d 位</string>
-  <string name="onboarding_music_selected_count">已选 %1$d 位</string>
-
   <string name="onboarding_avatar_title">添加头像</string>
   <string name="onboarding_avatar_subtitle">建议使用动漫或插画头像</string>
   <string name="onboarding_avatar_error_cannot_open_image">无法打开图片</string>
@@ -73,7 +69,6 @@
   <string name="onboarding_done_welcome_generic">欢迎来到 Pirate</string>
 
   <string name="onboarding_error_save_profile">保存资料失败</string>
-  <string name="onboarding_error_music_save">保存音乐偏好失败</string>
   <string name="onboarding_error_avatar_upload">上传头像失败</string>
   <string name="onboarding_error_finish">无法完成引导</string>
 </resources>

@@ -14,7 +14,6 @@ import sc.pirate.app.tempo.TempoPasskeyManager
 import kotlin.math.roundToInt
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
 import org.json.JSONObject
 
 private const val TAG = "OnboardingWriters"
@@ -127,70 +126,6 @@ internal suspend fun submitOnboardingProfileStep(
     } catch (e: Exception) {
       Log.w(TAG, "setTextRecord location failed: ${e.message}")
     }
-  }
-
-  return OnboardingStepWriteResult(
-    success = true,
-    sessionResult = sessionResolution,
-  )
-}
-
-internal suspend fun submitOnboardingMusicStep(
-  activity: androidx.fragment.app.FragmentActivity?,
-  account: TempoPasskeyManager.PasskeyAccount?,
-  currentSessionKey: SessionKeyManager.SessionKey?,
-  selectedArtists: List<OnboardingArtist>,
-  claimedName: String,
-  claimedTld: String,
-): OnboardingStepWriteResult {
-  if (selectedArtists.isEmpty() || claimedName.isBlank()) {
-    return OnboardingStepWriteResult(success = true)
-  }
-  val activeAccount =
-    account ?: return OnboardingStepWriteResult(
-      success = false,
-      error = "Tempo account required for onboarding.",
-    )
-  val hostActivity =
-    activity ?: return OnboardingStepWriteResult(
-      success = false,
-      error = "Missing activity for Tempo transaction signing.",
-    )
-
-  val sessionResolution =
-    resolveOnboardingSessionKeyForWrites(
-      activity = hostActivity,
-      account = activeAccount,
-      currentSessionKey = currentSessionKey,
-    )
-  val sessionKey =
-    sessionResolution.sessionKey
-      ?: return OnboardingStepWriteResult(
-        success = false,
-        error = sessionResolution.error ?: "Session key unavailable.",
-        sessionResult = sessionResolution,
-      )
-
-  val node = TempoNameRecordsApi.computeNode("$claimedName.$claimedTld")
-  val mbids = selectedArtists.map { it.mbid }.distinct()
-  val musicPayload =
-    JSONObject()
-      .put("version", 1)
-      .put("source", "manual")
-      .put("updatedAt", System.currentTimeMillis() / 1000)
-      .put("artistMbids", JSONArray(mbids))
-  val writeResult =
-    TempoNameRecordsApi.setTextRecords(
-      activity = hostActivity,
-      account = activeAccount,
-      node = node,
-      keys = listOf("heaven.music.v1", "heaven.music.count"),
-      values = listOf(musicPayload.toString(), mbids.size.toString()),
-      rpId = activeAccount.rpId,
-      sessionKey = sessionKey,
-    )
-  if (!writeResult.success) {
-    Log.w(TAG, "Music save failed: ${writeResult.error}")
   }
 
   return OnboardingStepWriteResult(

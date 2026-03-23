@@ -54,10 +54,6 @@
   <string name="onboarding_languages_level_label">Level</string>
   <string name="onboarding_languages_remove_content_description">Remove language</string>
 
-  <string name="onboarding_music_title">Pick artists you like</string>
-  <string name="onboarding_music_remaining">Pick at least %1$d more</string>
-  <string name="onboarding_music_selected_count">%1$d selected</string>
-
   <string name="onboarding_avatar_title">Add a profile photo</string>
   <string name="onboarding_avatar_subtitle">Anime or illustrated avatars preferred</string>
   <string name="onboarding_avatar_error_cannot_open_image">Cannot open image</string>
@@ -73,7 +69,6 @@
   <string name="onboarding_done_welcome_generic">Welcome to Pirate</string>
 
   <string name="onboarding_error_save_profile">Failed to save profile</string>
-  <string name="onboarding_error_music_save">Music save failed</string>
   <string name="onboarding_error_avatar_upload">Avatar upload failed</string>
   <string name="onboarding_error_finish">Failed to finish onboarding</string>
 </resources>

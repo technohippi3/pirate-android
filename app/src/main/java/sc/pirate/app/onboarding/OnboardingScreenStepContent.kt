@@ -1,7 +1,6 @@
 package sc.pirate.app.onboarding
 
 import android.content.Context
-import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -18,14 +17,11 @@ import sc.pirate.app.onboarding.steps.GenderStep
 import sc.pirate.app.onboarding.steps.LanguagesStep
 import sc.pirate.app.onboarding.steps.LocationResult
 import sc.pirate.app.onboarding.steps.LocationStep
-import sc.pirate.app.onboarding.steps.MusicStep
 import sc.pirate.app.onboarding.steps.NameStep
 import sc.pirate.app.profile.TempoNameRegistryApi
 import sc.pirate.app.tempo.SessionKeyManager
 import sc.pirate.app.tempo.TempoPasskeyManager
 import kotlinx.coroutines.launch
-
-private const val TAG = "OnboardingScreen"
 
 @Composable
 internal fun OnboardingStepContent(
@@ -65,7 +61,6 @@ internal fun OnboardingStepContent(
   val registrationFailedError = stringResource(R.string.onboarding_name_error_registration_failed)
   val tempoRequiredError = stringResource(R.string.onboarding_name_error_tempo_required)
   val saveProfileError = stringResource(R.string.onboarding_error_save_profile)
-  val musicSaveError = stringResource(R.string.onboarding_error_music_save)
   val avatarUploadError = stringResource(R.string.onboarding_error_avatar_upload)
   val finishOnboardingError = stringResource(R.string.onboarding_error_finish)
 
@@ -206,42 +201,9 @@ internal fun OnboardingStepContent(
               AppLocaleManager.preferredLocaleFromOnboardingLanguages(langs)?.let { localeTag ->
                 AppLocaleManager.storePreferredLocale(context, localeTag)
               }
-              onStepChange(OnboardingStep.MUSIC)
+              onStepChange(OnboardingStep.AVATAR)
             } catch (e: Exception) {
               onErrorChange(e.message ?: saveProfileError)
-            } finally {
-              onSubmittingChange(false)
-            }
-          }
-        },
-      )
-
-      OnboardingStep.MUSIC -> MusicStep(
-        submitting = submitting,
-        onContinue = { selectedArtists ->
-          scope.launch {
-            onSubmittingChange(true)
-            onErrorChange(null)
-            try {
-              val writeResult =
-                submitOnboardingMusicStep(
-                  activity = activity,
-                  account = tempoAccount,
-                  currentSessionKey = onboardingSessionKey,
-                  selectedArtists = selectedArtists,
-                  claimedName = claimedName,
-                  claimedTld = claimedTld,
-                )
-              onApplySessionResult(writeResult.sessionResult)
-              if (!writeResult.success) {
-                onErrorChange(writeResult.error ?: musicSaveError)
-                return@launch
-              }
-              onStepChange(OnboardingStep.AVATAR)
-            } catch (e: Exception) {
-              Log.w(TAG, "Music save failed: ${e.message}")
-              // Non-fatal — proceed.
-              onStepChange(OnboardingStep.AVATAR)
             } finally {
               onSubmittingChange(false)
             }

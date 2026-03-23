@@ -49,7 +49,7 @@ private const val TAG = "OnboardingScreen"
 private const val ONBOARDING_COMPLETE_V2 = "complete_v2"
 
 enum class OnboardingStep {
-  NAME, AGE, GENDER, LOCATION, LANGUAGES, MUSIC, AVATAR, DONE;
+  NAME, AGE, GENDER, LOCATION, LANGUAGES, AVATAR, DONE;
   val index: Int get() = ordinal
   val total: Int get() = entries.size - 1 // exclude DONE from progress
 }
