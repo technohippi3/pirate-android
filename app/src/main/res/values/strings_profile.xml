@@ -13,6 +13,7 @@
   <string name="profile_settings_app">App</string>
   <string name="profile_settings_app_version">Version %1$s</string>
   <string name="profile_settings_sign_out">Sign Out</string>
+  <string name="profile_settings_delete_account">Delete Account</string>
   <string name="profile_follow_contract_not_configured">Follow contract not configured</string>
   <string name="profile_follow_unavailable">Follow unavailable</string>
   <string name="profile_follow_transaction_failed">Follow transaction failed</string>

@@ -4,6 +4,8 @@ import com.adamglin.PhosphorIcons
 import com.adamglin.phosphoricons.Regular
 import com.adamglin.phosphoricons.regular.*
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -86,6 +88,7 @@ internal fun SettingsSheet(
   onDismiss: () -> Unit,
   onLogout: () -> Unit,
 ) {
+  val context = LocalContext.current
   val clipboardManager = LocalClipboardManager.current
   val scope = rememberCoroutineScope()
   var copied by remember { mutableStateOf(false) }
@@ -168,9 +171,26 @@ internal fun SettingsSheet(
       ) {
         Text(stringResource(R.string.profile_settings_sign_out), color = MaterialTheme.colorScheme.error)
       }
+
+      Spacer(Modifier.height(12.dp))
+
+      PirateOutlinedButton(
+        onClick = {
+          val intent =
+            Intent(Intent.ACTION_VIEW, Uri.parse(DELETE_ACCOUNT_URL)).apply {
+              addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+          runCatching { context.startActivity(intent) }
+        },
+        modifier = Modifier.fillMaxWidth(),
+      ) {
+        Text(stringResource(R.string.profile_settings_delete_account), color = MaterialTheme.colorScheme.error)
+      }
     }
   }
 }
+
+private const val DELETE_ACCOUNT_URL = "https://pirate.sc/delete"
 
 // ── Shared ──
 
