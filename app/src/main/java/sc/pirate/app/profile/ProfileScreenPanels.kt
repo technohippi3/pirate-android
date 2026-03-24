@@ -190,7 +190,7 @@ internal fun SettingsSheet(
   }
 }
 
-private const val DELETE_ACCOUNT_URL = "https://pirate.sc/delete"
+private const val DELETE_ACCOUNT_URL = "https://pirate.sc/delete-account"
 
 // ── Shared ──
 
