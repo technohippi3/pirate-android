@@ -198,7 +198,6 @@ dependencies {
 
   // Native passkeys
   implementation("androidx.credentials:credentials:1.2.2")
-  implementation("androidx.credentials:credentials-play-services-auth:1.2.2")
   implementation("com.upokecenter:cbor:4.5.3") {
     exclude(group = "com.github.peteroupc", module = "datautilities")
   }
