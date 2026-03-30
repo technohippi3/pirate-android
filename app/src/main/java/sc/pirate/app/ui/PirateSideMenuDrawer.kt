@@ -42,7 +42,7 @@ fun PirateSideMenuDrawer(
   isAuthenticated: Boolean,
   busy: Boolean,
   ethAddress: String?,
-  heavenName: String?,
+  primaryName: String?,
   avatarUri: String?,
   selfVerified: Boolean,
   onNavigateProfile: () -> Unit,
@@ -51,8 +51,7 @@ fun PirateSideMenuDrawer(
   onNavigateStudyCredits: () -> Unit,
   onNavigateVerifyIdentity: () -> Unit,
   onNavigatePublish: () -> Unit,
-  onSignUp: () -> Unit,
-  onSignIn: () -> Unit,
+  onContinue: () -> Unit,
   onLogout: () -> Unit,
 ) {
   ModalDrawerSheet(
@@ -91,7 +90,7 @@ fun PirateSideMenuDrawer(
             ) {
               Box(contentAlignment = Alignment.Center) {
                 Text(
-                  (heavenName?.take(1) ?: ethAddress.take(2).removePrefix("0x").ifEmpty { "?" }).uppercase(),
+                  (primaryName?.take(1) ?: ethAddress.take(2).removePrefix("0x").ifEmpty { "?" }).uppercase(),
                   fontWeight = FontWeight.Bold,
                   style = MaterialTheme.typography.bodyLarge,
                 )
@@ -104,7 +103,7 @@ fun PirateSideMenuDrawer(
               horizontalArrangement = Arrangement.spacedBy(6.dp),
             ) {
               Text(
-                heavenName ?: shortAddress(ethAddress, minLengthToShorten = 14),
+                primaryName ?: shortAddress(ethAddress, minLengthToShorten = 14),
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.bodyLarge,
               )
@@ -192,18 +191,11 @@ fun PirateSideMenuDrawer(
         }
       } else {
         PiratePrimaryButton(
-          text = "Sign Up",
+          text = "Continue",
           modifier = Modifier.fillMaxWidth(),
-          onClick = onSignUp,
+          onClick = onContinue,
           enabled = !busy,
         )
-        PirateOutlinedButton(
-          modifier = Modifier.fillMaxWidth(),
-          onClick = onSignIn,
-          enabled = !busy,
-        ) {
-          Text("Log In")
-        }
       }
     }
   }

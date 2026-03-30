@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
   <string name="app_name">Pirate</string>
+  <string name="asset_statements" translatable="false">[{"relation":["delegate_permission/common.handle_all_urls","delegate_permission/common.get_login_creds"],"target":{"namespace":"web","site":"https://pirate.sc"}}]</string>
   <string name="widget_description">Shows current track with playback controls</string>
   <string name="assistant_intro_message">Hey! I\'m Violet. You can think of me as your language penpal, lifecoach, or just a friend! I have context of what songs you like and what you\'re studying!
 

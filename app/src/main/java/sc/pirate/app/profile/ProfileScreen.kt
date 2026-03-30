@@ -27,7 +27,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun ProfileScreen(
   ethAddress: String?,
-  heavenName: String?,
+  primaryName: String?,
   avatarUri: String?,
   isAuthenticated: Boolean,
   busy: Boolean,
@@ -39,7 +39,7 @@ fun ProfileScreen(
   onMessage: ((String) -> Unit)? = null,
   onEditProfile: (() -> Unit)? = null,
   activity: FragmentActivity? = null,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount? = null,
+  legacySignerAccount: TempoPasskeyManager.PasskeyAccount? = null,
   viewerEthAddress: String? = ethAddress,
   usePublicProfileReadModel: Boolean = false,
   onPlayPublishedSong: ((PublishedSongRow) -> Unit)? = null,
@@ -72,8 +72,8 @@ fun ProfileScreen(
     hasTargetAddress &&
     !viewerEthAddress.isNullOrBlank() &&
     activity != null &&
-    tempoAccount != null &&
-    tempoAccount.address.equals(viewerEthAddress, ignoreCase = true) &&
+    legacySignerAccount != null &&
+    legacySignerAccount.address.equals(viewerEthAddress, ignoreCase = true) &&
     hasFollowContract
   val canMessage = !isOwnProfile && hasTargetAddress && onMessage != null
 
@@ -118,14 +118,14 @@ fun ProfileScreen(
   // Settings sheet
   var showSettings by remember { mutableStateOf(false) }
 
-  val handleText = heavenName ?: shortAddress(ethAddress, minLengthToShorten = 14)
+  val handleText = primaryName ?: shortAddress(ethAddress, minLengthToShorten = 14)
   val profileName = contractProfile
     ?.displayName
     ?.trim()
     ?.takeIf {
       it.isNotBlank() &&
         !it.equals(handleText, ignoreCase = true) &&
-        !it.equals(heavenName ?: "", ignoreCase = true)
+        !it.equals(primaryName ?: "", ignoreCase = true)
     }
   val effectiveAvatarRef = avatarUri?.trim()?.takeIf { it.isNotEmpty() }
     ?: contractProfile?.photoUri?.trim()?.takeIf { it.isNotEmpty() }
@@ -146,7 +146,7 @@ fun ProfileScreen(
     followError = null
     val target = ethAddress ?: return
     val activeActivity = activity ?: return
-    val account = tempoAccount ?: return
+    val account = legacySignerAccount ?: return
 
     val nextFollowing = !effectiveFollowing
     val previousFollowers = followerCount
@@ -232,7 +232,7 @@ fun ProfileScreen(
     pendingFollowTarget = pendingFollowTarget,
     scrobbleRetryKey = scrobbleRetryKey,
     contractRetryKey = contractRetryKey,
-    heavenName = heavenName,
+    primaryName = primaryName,
     usePublicProfileReadModel = usePublicProfileReadModel,
     onSetFollowerCount = { followerCount = it },
     onSetFollowingCount = { followingCount = it },

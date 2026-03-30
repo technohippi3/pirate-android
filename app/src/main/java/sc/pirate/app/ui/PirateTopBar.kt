@@ -26,7 +26,7 @@ fun PirateTopBar(
   title: String,
   isAuthenticated: Boolean,
   ethAddress: String?,
-  heavenName: String?,
+  primaryName: String?,
   avatarUri: String?,
   onAvatarClick: () -> Unit,
 ) {
@@ -55,7 +55,7 @@ fun PirateTopBar(
           )
         } else {
           val fallbackInitial = when {
-            !heavenName.isNullOrBlank() -> heavenName.take(1)
+            !primaryName.isNullOrBlank() -> primaryName.take(1)
             !ethAddress.isNullOrBlank() -> ethAddress.take(2).removePrefix("0x").ifEmpty { "?" }
             else -> "P"
           }.uppercase()

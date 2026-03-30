@@ -17,7 +17,7 @@ internal fun ProfileScreenLaunchEffects(
   pendingFollowTarget: Boolean?,
   scrobbleRetryKey: Int,
   contractRetryKey: Int,
-  heavenName: String?,
+  primaryName: String?,
   usePublicProfileReadModel: Boolean,
   onSetFollowerCount: (Int) -> Unit,
   onSetFollowingCount: (Int) -> Unit,
@@ -148,15 +148,15 @@ internal fun ProfileScreenLaunchEffects(
   }
 
   // Fetch user-friendly name records (location/school) when a primary name exists.
-  LaunchedEffect(heavenName, usePublicProfileReadModel) {
+  LaunchedEffect(primaryName, usePublicProfileReadModel) {
     if (usePublicProfileReadModel) return@LaunchedEffect
-    if (heavenName.isNullOrBlank()) {
+    if (primaryName.isNullOrBlank()) {
       onSetCoverRecord(null)
       onSetLocationRecord(null)
       onSetSchoolRecord(null)
       return@LaunchedEffect
     }
-    val node = TempoNameRecordsApi.computeNode(heavenName)
+    val node = TempoNameRecordsApi.computeNode(primaryName)
     withContext(Dispatchers.IO) {
       onSetCoverRecord(TempoNameRecordsApi.getTextRecord(node, TempoNameRecordsApi.PROFILE_COVER_RECORD_KEY))
       onSetLocationRecord(TempoNameRecordsApi.getTextRecord(node, "heaven.location"))

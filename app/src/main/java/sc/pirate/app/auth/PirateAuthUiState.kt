@@ -1,61 +1,40 @@
 package sc.pirate.app.auth
 
-import sc.pirate.app.tempo.TempoClient
-import sc.pirate.app.tempo.TempoPasskeyManager
+import sc.pirate.app.PirateChainConfig
 
 data class PirateAuthUiState(
-  val authServiceBaseUrl: String = "https://naga-dev-auth-service.getlit.dev",
-  val passkeyRpId: String = TempoPasskeyManager.DEFAULT_RP_ID,
-  val tempoRpcUrl: String = TempoClient.RPC_URL,
-  val tempoFeePayerUrl: String = TempoClient.SPONSOR_URL,
-  val tempoChainId: Long = TempoClient.CHAIN_ID,
-  val tempoAddress: String? = null,
-  val tempoCredentialId: String? = null,
-  val tempoPubKeyX: String? = null,
-  val tempoPubKeyY: String? = null,
-  val tempoRpId: String = TempoPasskeyManager.DEFAULT_RP_ID,
-  val signerType: SignerType? = null,
+  val provider: AuthProvider? = null,
+  val walletAddress: String? = null,
+  val authWalletAddress: String? = null,
+  val walletChainId: Long = PirateChainConfig.STORY_AENEID_CHAIN_ID,
+  val identityChainId: Long = PirateChainConfig.BASE_SEPOLIA_CHAIN_ID,
+  val walletSource: WalletSource? = null,
+  val privyUserId: String? = null,
+  val privyWalletId: String? = null,
+  val passkeyRpId: String = PiratePasskeyDefaults.DEFAULT_RP_ID,
   val selfVerified: Boolean = false,
   val output: String = "Ready.",
   val busy: Boolean = false,
 ) {
-  enum class SignerType {
-    PASSKEY,
+  enum class AuthProvider {
+    PRIVY,
   }
 
-  fun hasTempoCredentials(): Boolean {
-    val address = !tempoAddress.isNullOrBlank()
-    if (!address) return false
-
-    val hasPasskeyFields = !tempoCredentialId.isNullOrBlank() &&
-      !tempoPubKeyX.isNullOrBlank() &&
-      !tempoPubKeyY.isNullOrBlank()
-
-    return hasPasskeyFields
+  enum class WalletSource {
+    EMBEDDED,
+    EXTERNAL,
   }
 
-  fun hasAnyCredentials(): Boolean {
-    return hasTempoCredentials()
+  fun hasPrivyCredentials(): Boolean {
+    if (provider != AuthProvider.PRIVY) return false
+    return !walletAddress.isNullOrBlank()
   }
+
+  fun hasAnyCredentials(): Boolean = hasPrivyCredentials()
 
   fun activeAddress(): String? {
-    return tempoAddress?.takeIf { it.isNotBlank() }
-  }
-
-  /** Build 65-byte uncompressed P256 public key (0x04 || x || y) from stored hex coords. */
-  fun tempoP256PubKeyUncompressed(): ByteArray? {
-    val xHex = tempoPubKeyX?.takeIf { it.isNotBlank() } ?: return null
-    val yHex = tempoPubKeyY?.takeIf { it.isNotBlank() } ?: return null
-    val x = hexToBytes(xHex)
-    val y = hexToBytes(yHex)
-    if (x.size != 32 || y.size != 32) return null
-    return byteArrayOf(0x04) + x + y
-  }
-
-  private fun hexToBytes(hex: String): ByteArray {
-    val h = hex.removePrefix("0x").removePrefix("0X")
-    if (h.length % 2 != 0) return ByteArray(0)
-    return ByteArray(h.length / 2) { i -> h.substring(i * 2, i * 2 + 2).toInt(16).toByte() }
+    return walletAddress?.takeIf { it.isNotBlank() }
+      ?: authWalletAddress?.takeIf { it.isNotBlank() }
   }
 
   companion object {
@@ -63,31 +42,50 @@ data class PirateAuthUiState(
 
     fun save(context: android.content.Context, state: PirateAuthUiState) {
       context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE).edit()
-        .putString("tempoAddress", state.tempoAddress)
-        .putString("tempoCredentialId", state.tempoCredentialId)
-        .putString("tempoPubKeyX", state.tempoPubKeyX)
-        .putString("tempoPubKeyY", state.tempoPubKeyY)
-        .putString("tempoRpId", state.tempoRpId)
-        .putString("signerType", state.signerType?.name)
-        .putString("tempoFeePayerUrl", state.tempoFeePayerUrl)
+        .putString("provider", state.provider?.name)
+        .putString("walletAddress", state.walletAddress)
+        .putString("authWalletAddress", state.authWalletAddress)
+        .putLong("walletChainId", state.walletChainId)
+        .putLong("identityChainId", state.identityChainId)
+        .putString("walletSource", state.walletSource?.name)
+        .putString("privyUserId", state.privyUserId)
+        .putString("privyWalletId", state.privyWalletId)
+        .putString("passkeyRpId", state.passkeyRpId)
         .putBoolean("selfVerified", state.selfVerified)
         .apply()
     }
 
     fun load(context: android.content.Context): PirateAuthUiState {
       val prefs = context.getSharedPreferences(PREFS_NAME, android.content.Context.MODE_PRIVATE)
-      val signerType =
-        prefs.getString("signerType", null)?.let { raw ->
-          runCatching { SignerType.valueOf(raw) }.getOrNull()
+      val rawProvider =
+        prefs.getString("provider", null)?.let { raw ->
+          runCatching { AuthProvider.valueOf(raw) }.getOrNull()
         }
+      val walletSource =
+        prefs.getString("walletSource", null)?.let { raw ->
+          runCatching { WalletSource.valueOf(raw) }.getOrNull()
+        }
+      val walletAddress = prefs.getString("walletAddress", null)
+      val walletChainId =
+        prefs.takeIf { it.contains("walletChainId") }?.getLong("walletChainId", PirateChainConfig.STORY_AENEID_CHAIN_ID)
+          ?: PirateChainConfig.STORY_AENEID_CHAIN_ID
+      val identityChainId =
+        prefs.takeIf { it.contains("identityChainId") }?.getLong("identityChainId", PirateChainConfig.BASE_SEPOLIA_CHAIN_ID)
+          ?: PirateChainConfig.BASE_SEPOLIA_CHAIN_ID
+      val provider = rawProvider?.takeIf { it == AuthProvider.PRIVY }
+      val activeWalletAddress = walletAddress?.takeIf { provider == AuthProvider.PRIVY && it.isNotBlank() }
       return PirateAuthUiState(
-        tempoAddress = prefs.getString("tempoAddress", null),
-        tempoCredentialId = prefs.getString("tempoCredentialId", null),
-        tempoPubKeyX = prefs.getString("tempoPubKeyX", null),
-        tempoPubKeyY = prefs.getString("tempoPubKeyY", null),
-        tempoRpId = prefs.getString("tempoRpId", null) ?: TempoPasskeyManager.DEFAULT_RP_ID,
-        signerType = signerType,
-        tempoFeePayerUrl = prefs.getString("tempoFeePayerUrl", null) ?: TempoClient.SPONSOR_URL,
+        provider = provider,
+        walletAddress = activeWalletAddress,
+        authWalletAddress =
+          prefs.getString("authWalletAddress", null)?.takeIf { provider == AuthProvider.PRIVY && it.isNotBlank() }
+            ?: activeWalletAddress,
+        walletChainId = walletChainId,
+        identityChainId = identityChainId,
+        walletSource = walletSource,
+        privyUserId = prefs.getString("privyUserId", null)?.takeIf { provider == AuthProvider.PRIVY },
+        privyWalletId = prefs.getString("privyWalletId", null)?.takeIf { provider == AuthProvider.PRIVY },
+        passkeyRpId = prefs.getString("passkeyRpId", null) ?: PiratePasskeyDefaults.DEFAULT_RP_ID,
         selfVerified = prefs.getBoolean("selfVerified", false),
       )
     }

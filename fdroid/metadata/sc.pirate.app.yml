@@ -1,22 +1,23 @@
 Categories:
   - Internet
   - Multimedia
-  - Social
+  - Social Network
 License: GPL-3.0-only
 AuthorName: Pirate contributors
 AuthorEmail: support@pirate.sc
 WebSite: https://pirate.sc
-SourceCode: https://codeberg.org/technohippie/pirate-android
-IssueTracker: https://codeberg.org/technohippie/pirate-android/issues
+SourceCode: https://github.com/technohippi3/pirate-android
+IssueTracker: https://github.com/technohippi3/pirate-android/issues
+
+AutoName: Pirate
 
 RepoType: git
-Repo: https://codeberg.org/technohippie/pirate-android.git
+Repo: https://github.com/technohippi3/pirate-android.git
 
 Builds:
   - versionName: 0.1.0-alpha.2
     versionCode: 2
-    commit: v0.1.0-alpha.2
-    subdir: .
+    commit: 38b55341fb178759d628a7be435b2e1a666a5a63
     gradle:
       - fdroid
 
@@ -24,4 +25,3 @@ AutoUpdateMode: Version
 UpdateCheckMode: Tags
 CurrentVersion: 0.1.0-alpha.2
 CurrentVersionCode: 2
-

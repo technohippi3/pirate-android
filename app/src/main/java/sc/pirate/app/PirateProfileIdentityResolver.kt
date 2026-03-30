@@ -1,14 +1,14 @@
 package sc.pirate.app
 
 import android.util.Log
-import sc.pirate.app.profile.ProfileContractApi
-import sc.pirate.app.profile.TempoNameRecordsApi
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import sc.pirate.app.profile.HeavenNamesApi
 
 private const val TAG = "ProfileIdentity"
 private const val IDENTITY_CACHE_TTL_MS = 3 * 60 * 1000L
+
 private data class CachedIdentity(
   val name: String?,
   val avatar: String?,
@@ -17,7 +17,10 @@ private data class CachedIdentity(
 
 private val identityCache = LinkedHashMap<String, CachedIdentity>()
 
-internal suspend fun resolveProfileIdentity(address: String, forceRefresh: Boolean = false): Pair<String?, String?> = withContext(Dispatchers.IO) {
+internal suspend fun resolveProfileIdentity(
+  address: String,
+  forceRefresh: Boolean = false,
+): Pair<String?, String?> = withContext(Dispatchers.IO) {
   val normalizedAddress = address.trim().lowercase()
   if (normalizedAddress.isBlank()) return@withContext null to null
 
@@ -33,53 +36,46 @@ internal suspend fun resolveProfileIdentity(address: String, forceRefresh: Boole
   }
 
   Log.d(TAG, "resolveProfileIdentity: address=${address.take(10)}")
-  var contractProfileLoaded = false
-  var cachedContractProfile: sc.pirate.app.profile.ContractProfileData? = null
+  val publicProfile = runCatching { fetchPublicProfileReadModel(address, forceRefresh = forceRefresh) }
+    .onFailure { err -> Log.w(TAG, "loadPublicProfile failed: ${err.message}") }
+    .getOrNull()
+  val publicPrimaryName = publicProfile?.records?.primaryName?.trim()?.ifBlank { null }
+  val publicAvatar = publicProfile?.avatarRef?.trim()?.ifBlank { null }
 
-  suspend fun loadContractProfile(): sc.pirate.app.profile.ContractProfileData? {
-    if (contractProfileLoaded) return cachedContractProfile
-    contractProfileLoaded = true
-    cachedContractProfile = runCatching {
-      ProfileContractApi.fetchProfile(address)
-    }.getOrElse { err ->
-      Log.w(TAG, "loadContractProfile failed: ${err.message}")
-      null
-    }
-    Log.d(
-      TAG,
-      "loadContractProfile: displayName=${cachedContractProfile?.displayName} photoUri=${cachedContractProfile?.photoUri}",
-    )
-    return cachedContractProfile
-  }
-
-  val tempoName = TempoNameRecordsApi.getPrimaryName(address)
-  Log.d(TAG, "resolveProfileIdentity: tempoName=$tempoName")
-  if (!tempoName.isNullOrBlank()) {
-    val node = TempoNameRecordsApi.computeNode(tempoName)
-    val tempoAvatar = TempoNameRecordsApi.getTextRecord(node, "avatar")
-    Log.d(TAG, "resolveProfileIdentity: tempoAvatar=$tempoAvatar")
-    val profile = loadContractProfile()
-    val contractAvatar = profile?.photoUri?.trim()?.ifBlank { null }
-    val avatar = tempoAvatar ?: contractAvatar
+  if (!publicPrimaryName.isNullOrBlank() || !publicAvatar.isNullOrBlank()) {
     synchronized(identityCache) {
-      identityCache[normalizedAddress] = CachedIdentity(name = tempoName, avatar = avatar, cachedAtMs = System.currentTimeMillis())
+      identityCache[normalizedAddress] =
+        CachedIdentity(name = publicPrimaryName, avatar = publicAvatar, cachedAtMs = System.currentTimeMillis())
     }
-    Log.i(TAG, "resolveProfileIdentity: result name=$tempoName avatar=$avatar")
-    return@withContext tempoName to avatar
+    Log.i(TAG, "resolveProfileIdentity: publicProfile result name=$publicPrimaryName avatar=$publicAvatar")
+    return@withContext publicPrimaryName to publicAvatar
   }
 
-  val profile = loadContractProfile()
-  val fallbackName = profile?.displayName?.trim()?.ifBlank { null }
-  val fallbackContractAvatar = profile?.photoUri?.trim()?.ifBlank { null }
+  val heavenPrimaryName = runCatching { HeavenNamesApi.reverse(address) }.getOrNull()
+  if (heavenPrimaryName != null) {
+    val contractAvatar = publicProfile?.contractProfile?.photoUri?.trim()?.ifBlank { null }
+    synchronized(identityCache) {
+      identityCache[normalizedAddress] =
+        CachedIdentity(name = heavenPrimaryName.fullName, avatar = contractAvatar, cachedAtMs = System.currentTimeMillis())
+    }
+    Log.i(
+      TAG,
+      "resolveProfileIdentity: heaven result name=${heavenPrimaryName.fullName} avatar=$contractAvatar",
+    )
+    return@withContext heavenPrimaryName.fullName to contractAvatar
+  }
+
+  val fallbackName = publicProfile?.displayName?.trim()?.ifBlank { null }
+  val fallbackAvatar = publicProfile?.contractProfile?.photoUri?.trim()?.ifBlank { null }
   synchronized(identityCache) {
     identityCache[normalizedAddress] =
-      CachedIdentity(name = fallbackName, avatar = fallbackContractAvatar, cachedAtMs = System.currentTimeMillis())
+      CachedIdentity(name = fallbackName, avatar = fallbackAvatar, cachedAtMs = System.currentTimeMillis())
   }
   Log.i(
     TAG,
-    "resolveProfileIdentity: no tempo name found, contractName=$fallbackName contractAvatar=$fallbackContractAvatar",
+    "resolveProfileIdentity: fallback result name=$fallbackName avatar=$fallbackAvatar",
   )
-  return@withContext fallbackName to fallbackContractAvatar
+  return@withContext fallbackName to fallbackAvatar
 }
 
 internal suspend fun resolveProfileIdentityWithRetry(

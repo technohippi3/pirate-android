@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import sc.pirate.app.ui.PirateOutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -34,15 +33,11 @@ internal fun ProfileAuthRequiredContent(
     Text("Sign in to view your profile", color = PiratePalette.TextMuted, style = MaterialTheme.typography.bodyLarge)
     Spacer(Modifier.height(24.dp))
     PiratePrimaryButton(
-      text = "Sign Up",
+      text = "Continue",
       onClick = onRegister,
       enabled = !busy,
       modifier = Modifier.fillMaxWidth(0.6f),
     )
-    Spacer(Modifier.height(12.dp))
-    PirateOutlinedButton(onClick = onLogin, enabled = !busy, modifier = Modifier.fillMaxWidth(0.6f)) {
-      Text("Sign In")
-    }
     if (busy) {
       Spacer(Modifier.height(16.dp))
       CircularProgressIndicator(modifier = Modifier.size(24.dp))

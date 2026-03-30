@@ -377,6 +377,17 @@ object TempoNameRecordsApi {
     }
   }
 
+  internal fun encodeSetRecordsCallForRelay(
+    node: String,
+    keys: List<String>,
+    values: List<String>,
+  ): String {
+    require(keys.isNotEmpty()) { "At least one record key is required." }
+    require(keys.size == values.size) { "Record keys and values must have the same length." }
+    val normalizedNode = tempoNameNormalizeBytes32(node) ?: error("invalid node")
+    return encodeSetRecordsCall(normalizedNode, keys, values)
+  }
+
   private fun encodeSetTextCall(nodeHexNoPrefix: String, key: String, value: String): String {
     val function =
       Function(

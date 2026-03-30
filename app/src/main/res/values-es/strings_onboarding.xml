@@ -22,7 +22,7 @@
   <string name="onboarding_name_error_taken">Ese nombre ya está en uso</string>
   <string name="onboarding_name_error_check_failed">No se pudo comprobar la disponibilidad</string>
   <string name="onboarding_name_error_registration_failed">El registro falló</string>
-  <string name="onboarding_name_error_tempo_required">Se requiere una cuenta de Tempo para el onboarding.</string>
+  <string name="onboarding_name_error_legacy_signer_required">Se requiere una cuenta de firma heredada para el onboarding.</string>
 
   <string name="onboarding_age_title">¿Cuántos años tienes?</string>
   <string name="onboarding_age_label">Edad</string>

@@ -37,7 +37,7 @@
   <string name="player_message_song_unavailable">Song unavailable</string>
   <string name="player_message_track_not_playable">This track isn\'t playable right now.</string>
   <string name="player_message_song_unavailable_for_purchase">Song unavailable for purchase</string>
-  <string name="player_message_sign_in_to_buy">Sign in with Tempo passkey to buy songs</string>
+  <string name="player_message_sign_in_to_buy">Sign in to buy songs</string>
   <string name="player_message_purchase_failed">Purchase failed: %1$s</string>
   <string name="player_message_purchase_missing_entitlement">Purchase completed but no entitlement id returned</string>
   <string name="player_message_purchase_complete">Purchase complete</string>

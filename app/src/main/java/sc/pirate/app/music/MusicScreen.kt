@@ -30,7 +30,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 internal fun MusicScreen(
   player: PlayerController,
   ownerEthAddress: String?,
-  heavenName: String?,
+  primaryName: String?,
   avatarUri: String?,
   isAuthenticated: Boolean,
   onShowMessage: (String) -> Unit,
@@ -565,7 +565,7 @@ internal fun MusicScreen(
     sharedError = sharedError,
     isAuthenticated = isAuthenticated,
     ownerEthAddress = ownerEthAddress,
-    heavenName = heavenName,
+    primaryName = primaryName,
     avatarUri = avatarUri,
     ownerLabelFor = { owner -> sharedOwnerLabel(ownerAddress = owner, sharedOwnerLabels = sharedOwnerLabels) },
     onRefreshShared = { scope.launch { loadShared(force = true) } },

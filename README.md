@@ -46,6 +46,15 @@ PIRATE_ANDROID_SLOW=1 PIRATE_ANDROID_MAX_WORKERS=1 ./scripts/androidw.sh :app:co
 PIRATE_ANDROID_SLOW=1 PIRATE_ANDROID_MAX_WORKERS=1 ./scripts/androidw.sh :app:assembleFdroidDebug
 ```
 
+F-Droid submission notes:
+
+- Local metadata lives at `fdroid/metadata/sc.pirate.app.yml`.
+- Current `fdroiddata` metadata schema expects `Social Network`, not `Social`.
+- In `Builds[].commit`, use the full commit hash, not a tag name.
+- Do not set `subdir: .` in the build block. Current validation rejects it.
+- The app source repo must be public, and the GitLab fork hosting the `fdroiddata` merge request must also be public for reviewers to inspect it.
+- If the merge request says fast-forward merge is not possible, rebuild or rebase the branch on top of current `fdroid/fdroiddata:master` before asking for review again.
+
 Lower-impact mode for laptops/workstations that choke on full parallel builds:
 
 ```bash

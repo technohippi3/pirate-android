@@ -420,7 +420,7 @@ object TempoPasskeyManager {
         if (!storedRemotely) {
             Log.w(TAG, "Key manager store failed after passkey creation: credentialIdLen=${rawId.length}")
             throw IllegalStateException(
-                "Passkey created but remote account metadata persistence failed. Please try Sign Up again."
+                "Passkey created but remote account metadata persistence failed. Please try again."
             )
         }
         Log.i(TAG, "Key manager store success after passkey creation: credentialIdLen=${rawId.length}")

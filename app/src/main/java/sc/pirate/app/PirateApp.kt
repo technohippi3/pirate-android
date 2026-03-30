@@ -1,4 +1,5 @@
 package sc.pirate.app
+
 import android.util.Log
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -20,7 +21,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import sc.pirate.app.auth.PirateAuthMethod
+import sc.pirate.app.auth.PirateAuthRequest
 import sc.pirate.app.auth.PirateAuthUiState
+import sc.pirate.app.auth.PirateAuthProviderFactory
+import sc.pirate.app.auth.PirateAuthSheet
+import sc.pirate.app.auth.PiratePasskeyDefaults
 import sc.pirate.app.chat.XmtpChatService
 import sc.pirate.app.assistant.AgoraVoiceController
 import sc.pirate.app.assistant.AssistantVoiceBar
@@ -29,15 +35,12 @@ import sc.pirate.app.assistant.VoiceCallState
 import sc.pirate.app.assistant.clearWorkerAuthCache
 import sc.pirate.app.schedule.ScheduledSessionVoiceController
 import sc.pirate.app.scrobble.ScrobbleService
-import sc.pirate.app.tempo.TempoPasskeyManager
 import sc.pirate.app.post.PostStoryEnqueueSync
 import sc.pirate.app.ui.PirateTopBar
 import sc.pirate.app.player.PlayerController
 import sc.pirate.app.onboarding.OnboardingStep
 import sc.pirate.app.onboarding.checkOnboardingStatus
-import sc.pirate.app.profile.TempoNameRecordsApi
 import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoAccountFactory
 import kotlinx.coroutines.launch
 
 private const val TAG = "PirateApp"
@@ -70,11 +73,24 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
     val saved = PirateAuthUiState.load(appContext)
     mutableStateOf(
       saved.copy(
-        passkeyRpId = saved.tempoRpId.ifBlank { TempoPasskeyManager.DEFAULT_RP_ID },
-        tempoRpId = saved.tempoRpId.ifBlank { TempoPasskeyManager.DEFAULT_RP_ID },
+        passkeyRpId = saved.passkeyRpId.ifBlank { PiratePasskeyDefaults.DEFAULT_RP_ID },
       ),
     )
   }
+  var authSheetVisible by remember { mutableStateOf(false) }
+  var authSheetCodeMethod by remember { mutableStateOf<PirateAuthMethod?>(null) }
+  var authSheetIdentifier by remember { mutableStateOf("") }
+  var authSheetCode by remember { mutableStateOf("") }
+  var authSheetCodeSent by remember { mutableStateOf(false) }
+  val authProvider =
+    remember(authState.provider) {
+      PirateAuthProviderFactory.create(
+        context = appContext,
+        state = authState,
+      )
+    }
+  val availableAuthMethods = authProvider.availableMethods
+  val walletSession = remember(authState) { authProvider.currentSession(authState) }
 
   val scrobbleService =
     remember {
@@ -106,10 +122,10 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
   }
 
   val isAuthenticated = authState.hasAnyCredentials()
-  val activeAddress = authState.activeAddress()
+  val activeAddress = walletSession?.walletAddress ?: authState.activeAddress()
 
   // Profile identity — hoisted so drawer + profile screen can share
-  var heavenName by remember { mutableStateOf<String?>(null) }
+  var primaryName by remember { mutableStateOf<String?>(null) }
   var avatarUri by remember { mutableStateOf<String?>(null) }
   var chatThreadOpen by remember { mutableStateOf(false) }
   var musicRootViewActive by remember { mutableStateOf(true) }
@@ -129,37 +145,6 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
     runCatching {
       chatService.connect(normalizedAddress)
     }.onSuccess {
-      val account =
-        TempoAccountFactory.fromSession(
-          tempoAddress = authState.tempoAddress,
-          tempoCredentialId = authState.tempoCredentialId,
-          tempoPubKeyX = authState.tempoPubKeyX,
-          tempoPubKeyY = authState.tempoPubKeyY,
-          tempoRpId = authState.tempoRpId.ifBlank { TempoPasskeyManager.DEFAULT_RP_ID },
-        )?.takeIf { it.address.equals(normalizedAddress, ignoreCase = true) }
-      if (account != null) {
-        val sessionKey = SessionKeyManager.load(activity)
-        if (SessionKeyManager.isValid(sessionKey, ownerAddress = account.address)) {
-          val inboxId = chatService.currentInboxId()
-          if (!inboxId.isNullOrBlank()) {
-            runCatching {
-              val publishResult =
-                TempoNameRecordsApi.upsertXmtpInboxId(
-                  activity = activity,
-                  account = account,
-                  inboxId = inboxId,
-                  rpId = account.rpId,
-                  sessionKey = sessionKey,
-                )
-              if (!publishResult.success) {
-                Log.w(TAG, "XMTP inbox mapping publish failed ($source): ${publishResult.error}")
-              }
-            }.onFailure { err ->
-              Log.w(TAG, "XMTP inbox mapping publish failed ($source): ${err.message}")
-            }
-          }
-        }
-      }
       xmtpBootstrapKey = key
     }.onFailure { err ->
       xmtpBootstrapKey = null
@@ -170,10 +155,10 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
   LaunchedEffect(activeAddress) {
     val addr = activeAddress
     if (addr.isNullOrBlank()) {
-      heavenName = null; avatarUri = null; return@LaunchedEffect
+      primaryName = null; avatarUri = null; return@LaunchedEffect
     }
     val (name, avatar) = resolveProfileIdentityWithRetry(addr, attempts = 2, retryDelayMs = 700)
-    heavenName = name
+    primaryName = name
     avatarUri = avatar
   }
 
@@ -252,6 +237,18 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
     drawerState.open()
   }
 
+  fun resetAuthSheet() {
+    authSheetCodeMethod = null
+    authSheetIdentifier = ""
+    authSheetCode = ""
+    authSheetCodeSent = false
+  }
+
+  fun openAuthSheet() {
+    resetAuthSheet()
+    authSheetVisible = true
+  }
+
   suspend fun resolvePostAuthDestination(
     userAddress: String,
     alreadyResolving: Boolean = false,
@@ -280,147 +277,109 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
     }
   }
 
-  suspend fun doRegister() {
+  suspend fun doAuthenticate(request: PirateAuthRequest) {
+    if (request.method !in availableAuthMethods) {
+      val message = "${request.method.label} sign-in is unavailable right now."
+      authState = authState.copy(busy = false, output = message)
+      snackbarHostState.showSnackbar(message)
+      return
+    }
+    authSheetVisible = false
     navController.navigate(PirateRoute.AuthResolving.route) {
       popUpTo(navController.graph.startDestinationId) { saveState = true }
       launchSingleTop = true
       restoreState = true
     }
-    authState = authState.copy(busy = true, output = "Creating Tempo passkey account...")
+    authState =
+      authState.copy(
+        busy = true,
+        output = "Signing in with ${request.method.label.lowercase()}...",
+      )
     val result = runCatching {
-      val rpId = authState.passkeyRpId.ifBlank { authState.tempoRpId }
-      TempoPasskeyManager.createAccount(
+      authProvider.authenticate(
         activity = activity,
-        rpId = rpId,
-        rpName = "Pirate",
+        currentState = authState,
+        request = request,
       )
     }
 
     result.onFailure { err ->
-      authState = authState.copy(busy = false, output = "sign up failed: ${err.message}")
+      authState = authState.copy(busy = false, output = "authentication failed: ${err.message}")
       navController.navigate(PirateRoute.Home.route) {
         popUpTo(navController.graph.startDestinationId) { saveState = true }
         launchSingleTop = true
         restoreState = true
       }
-      snackbarHostState.showSnackbar("Sign up failed: ${err.message ?: "unknown error"}")
+      snackbarHostState.showSnackbar("Authentication failed: ${err.message ?: "unknown error"}")
     }
 
-    result.onSuccess { account ->
+    result.onSuccess { nextState ->
       chatService.disconnect()
       clearWorkerAuthCache()
       xmtpBootstrapKey = null
-      heavenName = null
+      primaryName = null
       avatarUri = null
-      val nextState =
-        authState.copy(
-          busy = false,
-          passkeyRpId = account.rpId,
-          tempoRpId = account.rpId,
-          tempoAddress = account.address,
-          tempoCredentialId = account.credentialId,
-          tempoPubKeyX = account.pubKey.xHex,
-          tempoPubKeyY = account.pubKey.yHex,
-          signerType = PirateAuthUiState.SignerType.PASSKEY,
-          selfVerified = false,
-          output = "Tempo account ready: ${account.address.take(10)}...",
-        )
       authState = nextState
       PirateAuthUiState.save(appContext, nextState)
-      scope.launch { snackbarHostState.showSnackbar("Signed up with passkey.") }
-      resolvePostAuthDestination(
-        account.address,
-        alreadyResolving = true,
-        onboardingOverride = OnboardingStep.NAME,
-      )
+      val accountAddress = nextState.activeAddress() ?: return@onSuccess
+      scope.launch { snackbarHostState.showSnackbar("Signed in.") }
+      resolvePostAuthDestination(accountAddress, alreadyResolving = true)
     }
   }
 
-  suspend fun doLogin() {
-    navController.navigate(PirateRoute.AuthResolving.route) {
-      popUpTo(navController.graph.startDestinationId) { saveState = true }
-      launchSingleTop = true
-      restoreState = true
+  suspend fun doSendOneTimeCode(method: PirateAuthMethod, identifier: String) {
+    if (method !in availableAuthMethods) {
+      val message = "${method.label} sign-in is unavailable right now."
+      authState = authState.copy(busy = false, output = message)
+      snackbarHostState.showSnackbar(message)
+      return
     }
-    authState = authState.copy(busy = true, output = "Authenticating with Tempo passkey...")
+    val trimmedIdentifier = identifier.trim()
+    authState =
+      authState.copy(
+        busy = true,
+        output = "Sending ${method.label.lowercase()} code...",
+      )
     val result = runCatching {
-      val rpId = authState.passkeyRpId.ifBlank { authState.tempoRpId }
-      TempoPasskeyManager.login(
-        activity = activity,
-        rpId = rpId,
+      authProvider.sendOneTimeCode(
+        method = method,
+        identifier = trimmedIdentifier,
       )
     }
 
     result.onFailure { err ->
-      Log.e(TAG, "Passkey login failed", err)
-      authState = authState.copy(busy = false, output = "login failed: ${err.message}")
-      navController.navigate(PirateRoute.Home.route) {
-        popUpTo(navController.graph.startDestinationId) { saveState = true }
-        launchSingleTop = true
-        restoreState = true
-      }
-      val reason = err.message ?: "unknown error"
-      val message =
-        if (reason.contains("not registered in this app", ignoreCase = true)) {
-          "Selected passkey is not registered on this device yet. Use Sign Up to register it."
-        } else if (
-          reason.contains(
-            "No local passkey account found and remote recovery failed",
-            ignoreCase = true,
-          )
-        ) {
-          "This passkey has no account metadata on this device or key manager. If this is an older passkey, sign in once on a device that still has it cached to back it up, or use Sign Up to create a recoverable passkey account."
-        } else {
-          "Log in failed: $reason"
-        }
-      snackbarHostState.showSnackbar(message)
+      authState = authState.copy(busy = false, output = "code send failed: ${err.message}")
+      snackbarHostState.showSnackbar("Could not send code: ${err.message ?: "unknown error"}")
     }
 
-    result.onSuccess { account ->
-      chatService.disconnect()
-      clearWorkerAuthCache()
-      xmtpBootstrapKey = null
-      heavenName = null
-      avatarUri = null
-      val nextState =
-        authState.copy(
-          busy = false,
-          passkeyRpId = account.rpId,
-          tempoRpId = account.rpId,
-          tempoAddress = account.address,
-          tempoCredentialId = account.credentialId,
-          tempoPubKeyX = account.pubKey.xHex,
-          tempoPubKeyY = account.pubKey.yHex,
-          signerType = PirateAuthUiState.SignerType.PASSKEY,
-          selfVerified = false,
-          output = "Logged in: ${account.address.take(10)}...",
-        )
-      authState = nextState
-      PirateAuthUiState.save(appContext, nextState)
-      scope.launch { snackbarHostState.showSnackbar("Logged in with passkey.") }
-      resolvePostAuthDestination(account.address, alreadyResolving = true)
+    result.onSuccess {
+      authState = authState.copy(busy = false, output = "Verification code sent.")
+      authSheetIdentifier = trimmedIdentifier
+      authSheetCodeSent = true
+      snackbarHostState.showSnackbar("Verification code sent.")
     }
   }
 
   suspend fun doLogout() {
+    authState = authState.copy(busy = true, output = "Signing out...")
+    val result = runCatching {
+      authProvider.clearSession(authState)
+    }
+
+    result.onFailure { err ->
+      authState = authState.copy(busy = false, output = "logout failed: ${err.message}")
+      snackbarHostState.showSnackbar("Log out failed: ${err.message ?: "unknown error"}")
+      return
+    }
+
     chatService.disconnect()
     clearWorkerAuthCache()
     xmtpBootstrapKey = null
-    heavenName = null
+    primaryName = null
     avatarUri = null
     SessionKeyManager.clear(appContext)
-
     PirateAuthUiState.clear(appContext)
-    authState =
-      authState.copy(
-        tempoAddress = null,
-        tempoCredentialId = null,
-        tempoPubKeyX = null,
-        tempoPubKeyY = null,
-        signerType = null,
-        selfVerified = false,
-        output = "Logged out.",
-      )
+    authState = result.getOrThrow()
     snackbarHostState.showSnackbar("Logged out.")
   }
 
@@ -434,11 +393,10 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
         isAuthenticated = isAuthenticated,
         busy = authState.busy,
         ethAddress = activeAddress,
-        heavenName = heavenName,
+        primaryName = primaryName,
         avatarUri = avatarUri,
         selfVerified = authState.selfVerified,
-        onRegister = { doRegister() },
-        onLogin = { doLogin() },
+        onContinue = { openAuthSheet() },
         onLogout = { doLogout() },
       )
     },
@@ -453,7 +411,7 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
             title = currentTitle,
             isAuthenticated = isAuthenticated,
             ethAddress = activeAddress,
-            heavenName = heavenName,
+            primaryName = primaryName,
             avatarUri = avatarUri,
             onAvatarClick = { scope.launch { openDrawer() } },
           )
@@ -503,14 +461,15 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
         innerPadding = innerPadding,
         navController = navController,
         authState = authState,
-        heavenName = heavenName,
+        walletSession = walletSession,
+        primaryName = primaryName,
         avatarUri = avatarUri,
         onAuthStateChange = { next ->
           authState = next
           PirateAuthUiState.save(appContext, next)
         },
-        onRegister = { scope.launch { doRegister() } },
-        onLogin = { scope.launch { doLogin() } },
+        onRegister = { openAuthSheet() },
+        onLogin = { openAuthSheet() },
         onLogout = { scope.launch { doLogout() } },
         player = player,
         chatService = chatService,
@@ -532,13 +491,13 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
           scope.launch {
             val currentAddress = authState.activeAddress()
             if (currentAddress.isNullOrBlank()) {
-              heavenName = null
+              primaryName = null
               avatarUri = null
               return@launch
             }
             runCatching {
               val (name, avatar) = resolveProfileIdentityWithRetry(currentAddress, forceRefresh = true)
-              heavenName = name
+              primaryName = name
               avatarUri = avatar
             }
           }
@@ -549,5 +508,56 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
         onboardingInitialStep = onboardingInitialStep,
       )
     }
+  }
+
+  if (authSheetVisible) {
+    PirateAuthSheet(
+      busy = authState.busy,
+      enabledMethods = availableAuthMethods,
+      codeMethod = authSheetCodeMethod,
+      identifier = authSheetIdentifier,
+      code = authSheetCode,
+      codeSent = authSheetCodeSent,
+      onDismiss = {
+        authSheetVisible = false
+        resetAuthSheet()
+      },
+      onMethodSelected = { method ->
+        if (method.requiresOneTimeCode) {
+          authSheetCodeMethod = method
+          authSheetCode = ""
+          authSheetCodeSent = false
+        } else {
+          scope.launch {
+            doAuthenticate(
+              PirateAuthRequest(method = method),
+            )
+          }
+        }
+      },
+      onIdentifierChange = { authSheetIdentifier = it },
+      onCodeChange = { authSheetCode = it },
+      onSendCode = {
+        val method = authSheetCodeMethod ?: return@PirateAuthSheet
+        scope.launch { doSendOneTimeCode(method = method, identifier = authSheetIdentifier) }
+      },
+      onSubmitCode = {
+        val method = authSheetCodeMethod ?: return@PirateAuthSheet
+        scope.launch {
+          doAuthenticate(
+            PirateAuthRequest(
+              method = method,
+              identifier = authSheetIdentifier,
+              code = authSheetCode,
+            ),
+          )
+        }
+      },
+      onBackToMethods = {
+        authSheetCodeMethod = null
+        authSheetCode = ""
+        authSheetCodeSent = false
+      },
+    )
   }
 }

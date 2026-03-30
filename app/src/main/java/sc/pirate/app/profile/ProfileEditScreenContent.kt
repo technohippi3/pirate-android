@@ -27,7 +27,7 @@ import sc.pirate.app.theme.PirateTokens
 internal fun ProfileEditBodyContent(
   loading: Boolean,
   error: String?,
-  heavenName: String?,
+  primaryName: String?,
   draft: ContractProfileData,
   coverPreviewBitmap: Bitmap?,
   coverUri: String?,
@@ -56,7 +56,7 @@ internal fun ProfileEditBodyContent(
         if (!error.isNullOrBlank()) {
           Text(error, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
         }
-        if (heavenName.isNullOrBlank()) {
+        if (primaryName.isNullOrBlank()) {
           Text(
             "Tip: claim a .heaven or .pirate name to sync cover, avatar, location, and school across name records.",
             color = PirateTokens.colors.textSecondary,
@@ -75,7 +75,7 @@ internal fun ProfileEditBodyContent(
             value = when {
               coverPreviewBitmap != null -> "New cover selected"
               !coverUri.isNullOrBlank() -> "Tap to change"
-              heavenName.isNullOrBlank() -> "Claim a name to add a cover"
+              primaryName.isNullOrBlank() -> "Claim a name to add a cover"
               else -> "No cover photo"
             },
             trailingPreview = {
@@ -84,7 +84,7 @@ internal fun ProfileEditBodyContent(
                 coverUri = coverUri,
               )
             },
-            onClick = { if (!heavenName.isNullOrBlank()) onOpenSheet(ProfileEditSheet.Cover) },
+            onClick = { if (!primaryName.isNullOrBlank()) onOpenSheet(ProfileEditSheet.Cover) },
           )
           EditSummaryRow(
             title = "Profile Photo",

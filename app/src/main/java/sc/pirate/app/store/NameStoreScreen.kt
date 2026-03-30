@@ -45,7 +45,7 @@ fun NameStoreScreen(
 ) {
   val scope = rememberCoroutineScope()
 
-  var selectedTld by remember { mutableStateOf("heaven") }
+  var selectedTld by remember { mutableStateOf("pirate") }
   var selectedName by remember { mutableStateOf<SelectableName?>(null) }
 
   var customInput by remember { mutableStateOf("") }

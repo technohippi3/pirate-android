@@ -36,8 +36,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import sc.pirate.app.onboarding.steps.LocationResult
 import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoAccountFactory
 import sc.pirate.app.tempo.TempoSessionKeyApi
+import sc.pirate.app.tempo.TempoPasskeyManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -47,25 +47,12 @@ import kotlinx.coroutines.withContext
 fun ProfileEditScreen(
   activity: androidx.fragment.app.FragmentActivity,
   ethAddress: String,
-  tempoAddress: String?,
-  tempoCredentialId: String?,
-  tempoPubKeyX: String?,
-  tempoPubKeyY: String?,
-  tempoRpId: String,
+  legacySignerAccount: TempoPasskeyManager.PasskeyAccount?,
   onBack: () -> Unit,
   onSaved: () -> Unit,
 ) {
   val appContext = LocalContext.current.applicationContext
   val scope = rememberCoroutineScope()
-  val tempoAccount = remember(tempoAddress, tempoCredentialId, tempoPubKeyX, tempoPubKeyY, tempoRpId) {
-    TempoAccountFactory.fromSession(
-      tempoAddress = tempoAddress,
-      tempoCredentialId = tempoCredentialId,
-      tempoPubKeyX = tempoPubKeyX,
-      tempoPubKeyY = tempoPubKeyY,
-      tempoRpId = tempoRpId,
-    )
-  }
 
   var loading by remember { mutableStateOf(true) }
   var saving by remember { mutableStateOf(false) }
@@ -73,7 +60,7 @@ fun ProfileEditScreen(
   var draft by remember { mutableStateOf(ProfileContractApi.emptyProfile()) }
   var activeSheet by remember { mutableStateOf<ProfileEditSheet?>(null) }
 
-  var heavenName by remember { mutableStateOf<String?>(null) }
+  var primaryName by remember { mutableStateOf<String?>(null) }
   var profileNode by remember { mutableStateOf<String?>(null) }
 
   var avatarUri by remember { mutableStateOf<String?>(null) }
@@ -122,11 +109,11 @@ fun ProfileEditScreen(
   ProfileEditLaunchEffects(
     activity = activity,
     ethAddress = ethAddress,
-    tempoAccount = tempoAccount,
+    legacySignerAccount = legacySignerAccount,
     onSetLoading = { loading = it },
     onSetError = { error = it },
     onSetDraft = { draft = it },
-    onSetPirateName = { heavenName = it },
+    onSetPrimaryName = { primaryName = it },
     onSetProfileNode = { profileNode = it },
     onSetAvatarUri = { avatarUri = it },
     onSetAvatarPreviewBitmap = { avatarPreviewBitmap = it },
@@ -167,13 +154,13 @@ fun ProfileEditScreen(
       PirateTextButton(
         onClick = {
           if (saving) return@PirateTextButton
-          val activeTempoAccount = tempoAccount
-          if (activeTempoAccount == null) {
-            error = "Tempo passkey account required."
+          val activeSignerAccount = legacySignerAccount
+          if (activeSignerAccount == null) {
+            error = "Profile editing is not available in this Android build yet."
             return@PirateTextButton
           }
-          if (!activeTempoAccount.address.equals(ethAddress, ignoreCase = true)) {
-            error = "Active address does not match Tempo passkey account."
+          if (!activeSignerAccount.address.equals(ethAddress, ignoreCase = true)) {
+            error = "Active address does not match the current signing account."
             return@PirateTextButton
           }
           saving = true
@@ -193,7 +180,7 @@ fun ProfileEditScreen(
                 val uploadResult = withContext(Dispatchers.IO) {
                   val jpegBytes = Base64.decode(avatarBase64, Base64.DEFAULT)
                   ProfileAvatarUploadApi.uploadAvatarJpeg(
-                    ownerEthAddress = activeTempoAccount.address,
+                    ownerEthAddress = activeSignerAccount.address,
                     jpegBytes = jpegBytes,
                   )
                 }
@@ -215,7 +202,7 @@ fun ProfileEditScreen(
                 val uploadResult = withContext(Dispatchers.IO) {
                   val jpegBytes = Base64.decode(coverBase64, Base64.DEFAULT)
                   ProfileCoverUploadApi.uploadCoverJpeg(
-                    ownerEthAddress = activeTempoAccount.address,
+                    ownerEthAddress = activeSignerAccount.address,
                     jpegBytes = jpegBytes,
                   )
                 }
@@ -262,8 +249,8 @@ fun ProfileEditScreen(
               Log.d("ProfileEdit", "No session key, authorizing...")
               val authResult = TempoSessionKeyApi.authorizeSessionKey(
                 activity = activity,
-                account = activeTempoAccount,
-                rpId = activeTempoAccount.rpId,
+                account = activeSignerAccount,
+                rpId = activeSignerAccount.rpId,
               )
               if (authResult.success && authResult.sessionKey != null) {
                 activeSessionKey = authResult.sessionKey
@@ -275,12 +262,10 @@ fun ProfileEditScreen(
             }
 
             val profileResult =
-              TempoProfileContractApi.upsertProfile(
+              LegacyIdentityWriteBridge.upsertProfile(
                 activity = activity,
-                account = activeTempoAccount,
+                ownerAddress = activeSignerAccount.address,
                 profileInput = payload,
-                rpId = activeTempoAccount.rpId,
-                sessionKey = activeSessionKey,
               )
             val profileError = if (profileResult.success) null else profileResult.error ?: "Profile update failed"
             if (profileError != null) {
@@ -313,14 +298,12 @@ fun ProfileEditScreen(
 
               if (keys.isNotEmpty()) {
                 val recordResult =
-                  TempoNameRecordsApi.setTextRecords(
+                  LegacyIdentityWriteBridge.setTextRecords(
                     activity = activity,
-                    account = activeTempoAccount,
+                    ownerAddress = activeSignerAccount.address,
                     node = node,
                     keys = keys,
                     values = values,
-                    rpId = activeTempoAccount.rpId,
-                    sessionKey = activeSessionKey,
                   )
                 if (!recordResult.success) {
                   error = "Profile saved, but name records failed to sync: ${recordResult.error ?: "Unknown error"}"
@@ -354,7 +337,7 @@ fun ProfileEditScreen(
     ProfileEditBodyContent(
       loading = loading,
       error = error,
-      heavenName = heavenName,
+      primaryName = primaryName,
       draft = draft,
       coverPreviewBitmap = coverPreviewBitmap,
       coverUri = coverUri,

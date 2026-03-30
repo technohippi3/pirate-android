@@ -138,7 +138,7 @@ internal suspend fun addTrackToPlaylistWithUi(
 
   val owner = ownerEthAddress?.trim()?.lowercase().orEmpty()
   if (!isAuthenticated || owner.isBlank() || tempoAccount == null) {
-    onShowMessage("Sign in with Tempo passkey to update playlists")
+    onShowMessage("Sign in to update playlists")
     return null
   }
 

@@ -142,7 +142,7 @@ fun PublishScreen(
   ownerAddress: String?,
   hostActivity: FragmentActivity?,
   tempoAccount: TempoPasskeyManager.PasskeyAccount?,
-  heavenName: String?,
+  primaryName: String?,
   isAuthenticated: Boolean,
   onSelfVerifiedChange: (Boolean) -> Unit = {},
   onClose: () -> Unit,
@@ -169,7 +169,7 @@ fun PublishScreen(
       ownerAddress = ownerAddress,
       hostActivity = hostActivity,
       tempoAccount = tempoAccount,
-      heavenName = heavenName,
+      primaryName = primaryName,
       onClose = onClose,
       onShowMessage = onShowMessage,
     )
@@ -182,7 +182,7 @@ private fun PublishFormContent(
   ownerAddress: String,
   hostActivity: FragmentActivity?,
   tempoAccount: TempoPasskeyManager.PasskeyAccount?,
-  heavenName: String?,
+  primaryName: String?,
   onClose: () -> Unit,
   onShowMessage: (String) -> Unit,
 ) {
@@ -190,7 +190,7 @@ private fun PublishFormContent(
   val scope = rememberCoroutineScope()
 
   // Publish identity is account-derived, not user-entered.
-  val defaultArtist = heavenName?.trim().takeUnless { it.isNullOrEmpty() } ?: ownerAddress
+  val defaultArtist = primaryName?.trim().takeUnless { it.isNullOrEmpty() } ?: ownerAddress
 
   var step by remember { mutableStateOf(PublishStep.SONG) }
   var formData by remember { mutableStateOf(SongPublishService.SongFormData(artist = defaultArtist)) }

@@ -47,7 +47,7 @@ fun PirateMobileHeader(
   title: String,
   isAuthenticated: Boolean = false,
   ethAddress: String? = null,
-  heavenName: String? = null,
+  primaryName: String? = null,
   avatarUri: String? = null,
   onAvatarPress: (() -> Unit)? = null,
   onBackPress: (() -> Unit)? = null,
@@ -120,7 +120,7 @@ fun PirateMobileHeader(
           val bg = if (isAuthenticated) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
           val fg = if (isAuthenticated) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
           val displayAvatarUri = avatarUri?.trim()?.takeIf { it.isNotBlank() } ?: resolvedAvatarUri
-          val displayName = heavenName?.trim()?.takeIf { it.isNotBlank() } ?: resolvedName
+          val displayName = primaryName?.trim()?.takeIf { it.isNotBlank() } ?: resolvedName
           val avatarUrl = resolveAvatarUrl(displayAvatarUri)
           if (!avatarUrl.isNullOrBlank()) {
             AsyncImage(

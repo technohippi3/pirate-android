@@ -14,7 +14,6 @@ import sc.pirate.app.music.PublishScreen
 import sc.pirate.app.onboarding.OnboardingScreen
 import sc.pirate.app.post.PostCaptureScreen
 import sc.pirate.app.post.PostPreviewScreen
-import sc.pirate.app.profile.TempoNameRecordsApi
 import sc.pirate.app.assistant.AssistantCallScreen
 import sc.pirate.app.schedule.ScheduledSessionCallScreen
 import sc.pirate.app.songpicker.SongPickerSong
@@ -37,16 +36,10 @@ internal fun NavGraphBuilder.registerModalRoutes(context: PirateNavHostContext) 
     OnboardingScreen(
       activity = context.activity,
       userEthAddress = context.activeAddress.orEmpty(),
-      tempoAddress = context.authState.tempoAddress,
-      tempoCredentialId = context.authState.tempoCredentialId,
-      tempoPubKeyX = context.authState.tempoPubKeyX,
-      tempoPubKeyY = context.authState.tempoPubKeyY,
-      tempoRpId = context.authState.tempoRpId.ifBlank { sc.pirate.app.tempo.TempoPasskeyManager.DEFAULT_RP_ID },
       initialStep = context.onboardingInitialStep,
-      onEnsureMessagingInbox = { sessionKey ->
+      onEnsureMessagingInbox = {
         val address = context.activeAddress
-        val account = context.tempoAccount
-        if (address.isNullOrBlank() || account == null) {
+        if (address.isNullOrBlank()) {
           return@OnboardingScreen "Missing account for messaging setup."
         }
 
@@ -54,20 +47,8 @@ internal fun NavGraphBuilder.registerModalRoutes(context: PirateNavHostContext) 
           if (!context.chatService.connected.value) {
             context.chatService.connect(address)
           }
-          val inboxId =
-            context.chatService.currentInboxId()
-              ?: throw IllegalStateException("XMTP inbox unavailable")
-          val publishResult =
-            TempoNameRecordsApi.upsertXmtpInboxId(
-              activity = context.activity,
-              account = account,
-              inboxId = inboxId,
-              rpId = account.rpId,
-              sessionKey = sessionKey,
-            )
-          if (!publishResult.success) {
-            throw IllegalStateException(publishResult.error ?: "Failed to publish XMTP inbox mapping")
-          }
+          context.chatService.currentInboxId()
+            ?: throw IllegalStateException("XMTP inbox unavailable")
         }.fold(
           onSuccess = { null },
           onFailure = { err ->
@@ -188,7 +169,7 @@ internal fun NavGraphBuilder.registerModalRoutes(context: PirateNavHostContext) 
         videoUri = videoUri,
         initialSong = initialSong,
         ownerAddress = context.authState.activeAddress() ?: "",
-        tempoAccount = context.tempoAccount,
+        tempoAccount = context.legacySignerAccount,
         onBack = { context.navController.popBackStack() },
         onClose = {
           context.navController.popBackStack()
@@ -211,8 +192,8 @@ internal fun NavGraphBuilder.registerModalRoutes(context: PirateNavHostContext) 
       authState = context.authState,
       ownerAddress = context.authState.activeAddress(),
       hostActivity = context.activity,
-      tempoAccount = context.tempoAccount,
-      heavenName = context.heavenName,
+      tempoAccount = context.legacySignerAccount,
+      primaryName = context.primaryName,
       isAuthenticated = isAuthenticated,
       onSelfVerifiedChange = { verified ->
         if (context.authState.selfVerified != verified) {
@@ -230,7 +211,7 @@ internal fun NavGraphBuilder.registerModalRoutes(context: PirateNavHostContext) 
     enterTransition = { modalEnterTransition() },
     popExitTransition = { modalPopExitTransition() },
   ) {
-    val isAuthenticated = context.authState.hasTempoCredentials()
+    val isAuthenticated = context.legacySignerAccount != null
     sc.pirate.app.player.PlayerScreen(
       player = context.player,
       ownerEthAddress = context.authState.activeAddress(),
@@ -246,7 +227,7 @@ internal fun NavGraphBuilder.registerModalRoutes(context: PirateNavHostContext) 
         context.navController.navigate(PirateRoute.Artist.buildRoute(artistName)) { launchSingleTop = true }
       },
       hostActivity = context.activity,
-      tempoAccount = context.tempoAccount,
+      tempoAccount = context.legacySignerAccount,
     )
   }
 
@@ -363,7 +344,7 @@ internal fun NavGraphBuilder.registerModalRoutes(context: PirateNavHostContext) 
           ?.trim()
           ?.ifBlank { null },
       ownerEthAddress = context.activeAddress,
-      tempoAccount = context.tempoAccount,
+      tempoAccount = context.legacySignerAccount,
       hostActivity = context.activity,
       onBack = { context.navController.popBackStack() },
       onShowMessage = context.onShowMessage,

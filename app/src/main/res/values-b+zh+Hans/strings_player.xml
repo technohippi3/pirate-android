@@ -37,7 +37,7 @@
   <string name="player_message_song_unavailable">歌曲不可用</string>
   <string name="player_message_track_not_playable">这首歌当前无法播放。</string>
   <string name="player_message_song_unavailable_for_purchase">这首歌当前无法购买</string>
-  <string name="player_message_sign_in_to_buy">请使用 Tempo passkey 登录后购买歌曲</string>
+  <string name="player_message_sign_in_to_buy">请先登录后购买歌曲</string>
   <string name="player_message_purchase_failed">购买失败：%1$s</string>
   <string name="player_message_purchase_missing_entitlement">购买已完成，但未返回权限 id</string>
   <string name="player_message_purchase_complete">购买完成</string>

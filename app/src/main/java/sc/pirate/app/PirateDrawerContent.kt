@@ -14,11 +14,10 @@ internal fun PirateDrawerContent(
   isAuthenticated: Boolean,
   busy: Boolean,
   ethAddress: String?,
-  heavenName: String?,
+  primaryName: String?,
   avatarUri: String?,
   selfVerified: Boolean,
-  onRegister: suspend () -> Unit,
-  onLogin: suspend () -> Unit,
+  onContinue: suspend () -> Unit,
   onLogout: suspend () -> Unit,
 ) {
   val scope = rememberCoroutineScope()
@@ -31,7 +30,7 @@ internal fun PirateDrawerContent(
     isAuthenticated = isAuthenticated,
     busy = busy,
     ethAddress = ethAddress,
-    heavenName = heavenName,
+    primaryName = primaryName,
     avatarUri = avatarUri,
     selfVerified = selfVerified,
     onNavigateProfile = {
@@ -74,16 +73,10 @@ internal fun PirateDrawerContent(
         navController.navigate(PirateRoute.Publish.route) { launchSingleTop = true }
       }
     },
-    onSignUp = {
+    onContinue = {
       scope.launch {
         closeDrawer()
-        onRegister()
-      }
-    },
-    onSignIn = {
-      scope.launch {
-        closeDrawer()
-        onLogin()
+        onContinue()
       }
     },
     onLogout = {

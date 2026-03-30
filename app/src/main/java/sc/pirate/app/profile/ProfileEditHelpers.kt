@@ -27,7 +27,7 @@ internal enum class ProfileEditSheet {
 
 internal data class LoadedProfileContext(
   val profile: ContractProfileData,
-  val heavenName: String?,
+  val primaryName: String?,
   val node: String?,
   val avatarRecord: String?,
   val coverRecord: String?,

@@ -148,7 +148,7 @@ object TempoProfileContractApi {
     }
   }
 
-  private fun encodeUpsertProfileCall(profileInput: JSONObject): String {
+  internal fun encodeUpsertProfileCall(profileInput: JSONObject): String {
     val profileStruct =
       DynamicStruct(
         uint8(profileInput.optInt("profileVersion", 2)),

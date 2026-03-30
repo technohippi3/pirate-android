@@ -21,7 +21,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -34,14 +33,21 @@ import kotlinx.coroutines.delay
 
 private const val MIN_LABEL_LENGTH = 3
 
+sealed interface NameAvailabilityResult {
+  data object Available : NameAvailabilityResult
+
+  data class Unavailable(
+    val message: String? = null,
+  ) : NameAvailabilityResult
+}
+
 @Composable
 fun NameStep(
   submitting: Boolean,
   error: String?,
   selectedTld: String,
-  showPirateOption: Boolean,
   onTldChange: (String) -> Unit,
-  onCheckAvailable: suspend (label: String, tld: String) -> Boolean,
+  onCheckAvailable: suspend (label: String, tld: String) -> NameAvailabilityResult,
   onContinue: (label: String, tld: String) -> Unit,
 ) {
   var name by remember { mutableStateOf("") }
@@ -71,9 +77,15 @@ fun NameStep(
     checking = true
     delay(400)
     try {
-      val isAvailable = onCheckAvailable(sanitized, selectedTld)
-      available = isAvailable
-      if (!isAvailable) checkError = takenError
+      when (val result = onCheckAvailable(sanitized, selectedTld)) {
+        NameAvailabilityResult.Available -> {
+          available = true
+        }
+        is NameAvailabilityResult.Unavailable -> {
+          available = false
+          checkError = result.message ?: takenError
+        }
+      }
     } catch (e: Exception) {
       checkError = e.message ?: checkFailedError
     } finally {
@@ -102,16 +114,18 @@ fun NameStep(
     )
     Spacer(Modifier.height(32.dp))
 
-    if (showPirateOption) {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-      ) {
-        PirateToggleChip(selected = selectedTld == "heaven", onClick = { onTldChange("heaven") }, label = ".heaven")
-        PirateToggleChip(selected = selectedTld == "pirate", onClick = { onTldChange("pirate") }, label = ".pirate")
-      }
-      Spacer(Modifier.height(14.dp))
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(10.dp),
+    ) {
+      PirateToggleChip(
+        selected = selectedTld == "pirate",
+        onClick = { onTldChange("pirate") },
+        label = ".pirate",
+      )
+      PirateToggleChip(selected = selectedTld == "heaven", onClick = { onTldChange("heaven") }, label = ".heaven")
     }
+    Spacer(Modifier.height(14.dp))
 
     PirateOutlinedTextField(
       value = name,

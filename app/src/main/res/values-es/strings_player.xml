@@ -37,7 +37,7 @@
   <string name="player_message_song_unavailable">Canción no disponible</string>
   <string name="player_message_track_not_playable">Esta canción no se puede reproducir ahora mismo.</string>
   <string name="player_message_song_unavailable_for_purchase">Canción no disponible para compra</string>
-  <string name="player_message_sign_in_to_buy">Inicia sesión con la passkey de Tempo para comprar canciones</string>
+  <string name="player_message_sign_in_to_buy">Inicia sesión para comprar canciones</string>
   <string name="player_message_purchase_failed">Compra fallida: %1$s</string>
   <string name="player_message_purchase_missing_entitlement">La compra se completó pero no devolvió un id de acceso</string>
   <string name="player_message_purchase_complete">Compra completada</string>

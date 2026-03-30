@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.NavHost
 import sc.pirate.app.auth.PirateAuthUiState
+import sc.pirate.app.auth.PirateWalletSession
 import sc.pirate.app.chat.XmtpChatService
 import sc.pirate.app.player.PlayerController
 import sc.pirate.app.profile.FollowListMode
@@ -22,18 +23,17 @@ import sc.pirate.app.profile.PublishedSongRow
 import sc.pirate.app.assistant.AgoraVoiceController
 import sc.pirate.app.assistant.AssistantService
 import sc.pirate.app.schedule.ScheduledSessionVoiceController
-import sc.pirate.app.tempo.TempoAccountFactory
-import sc.pirate.app.tempo.TempoPasskeyManager
 import kotlinx.coroutines.CoroutineScope
 
 internal data class PirateNavHostContext(
   val activity: androidx.fragment.app.FragmentActivity,
   val navController: androidx.navigation.NavHostController,
   val authState: PirateAuthUiState,
+  val walletSession: PirateWalletSession?,
   val activeAddress: String?,
-  val heavenName: String?,
+  val primaryName: String?,
   val avatarUri: String?,
-  val tempoAccount: TempoPasskeyManager.PasskeyAccount?,
+  val legacySignerAccount: sc.pirate.app.tempo.TempoPasskeyManager.PasskeyAccount?,
   val onAuthStateChange: (PirateAuthUiState) -> Unit,
   val onRegister: () -> Unit,
   val onLogin: () -> Unit,
@@ -65,7 +65,8 @@ internal fun PirateNavHost(
   innerPadding: PaddingValues,
   navController: androidx.navigation.NavHostController,
   authState: PirateAuthUiState,
-  heavenName: String?,
+  walletSession: PirateWalletSession?,
+  primaryName: String?,
   avatarUri: String?,
   onAuthStateChange: (PirateAuthUiState) -> Unit,
   onRegister: () -> Unit,
@@ -102,22 +103,8 @@ internal fun PirateNavHost(
     } else {
       Modifier.fillMaxSize().padding(innerPadding)
     }
-  val activeAddress = authState.activeAddress()
-  val tempoAccount = remember(
-    authState.tempoAddress,
-    authState.tempoCredentialId,
-    authState.tempoPubKeyX,
-    authState.tempoPubKeyY,
-    authState.tempoRpId,
-  ) {
-    TempoAccountFactory.fromSession(
-      tempoAddress = authState.tempoAddress,
-      tempoCredentialId = authState.tempoCredentialId,
-      tempoPubKeyX = authState.tempoPubKeyX,
-      tempoPubKeyY = authState.tempoPubKeyY,
-      tempoRpId = authState.tempoRpId.ifBlank { TempoPasskeyManager.DEFAULT_RP_ID },
-    )
-  }
+  val activeAddress = walletSession?.walletAddress ?: authState.activeAddress()
+  val legacySignerAccount = walletSession?.legacySignerAccount
 
   val openSongRoute: (String, String?, String?) -> Unit = { trackId, title, artist ->
     navController.navigate(
@@ -171,10 +158,11 @@ internal fun PirateNavHost(
     activity = activity,
     navController = navController,
     authState = authState,
+    walletSession = walletSession,
     activeAddress = activeAddress,
-    heavenName = heavenName,
+    primaryName = primaryName,
     avatarUri = avatarUri,
-    tempoAccount = tempoAccount,
+    legacySignerAccount = legacySignerAccount,
     onAuthStateChange = onAuthStateChange,
     onRegister = onRegister,
     onLogin = onLogin,

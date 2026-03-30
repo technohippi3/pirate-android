@@ -18,7 +18,6 @@ import sc.pirate.app.profile.FollowListMode
 import sc.pirate.app.profile.FollowListScreen
 import sc.pirate.app.profile.ProfileEditScreen
 import sc.pirate.app.profile.ProfileScreen
-import sc.pirate.app.tempo.TempoPasskeyManager
 import sc.pirate.app.theme.PirateTokens
 import kotlinx.coroutines.launch
 
@@ -27,7 +26,7 @@ internal fun NavGraphBuilder.registerProfileRoutes(context: PirateNavHostContext
     val isAuthenticated = context.authState.hasAnyCredentials()
     ProfileScreen(
       ethAddress = context.activeAddress,
-      heavenName = context.heavenName,
+      primaryName = context.primaryName,
       avatarUri = context.avatarUri,
       isAuthenticated = isAuthenticated,
       busy = context.authState.busy,
@@ -41,9 +40,9 @@ internal fun NavGraphBuilder.registerProfileRoutes(context: PirateNavHostContext
         context.navController.navigate(PirateRoute.EditProfile.route) { launchSingleTop = true }
       },
       activity = context.activity,
-      tempoAccount = context.tempoAccount,
+      legacySignerAccount = context.legacySignerAccount,
       viewerEthAddress = context.activeAddress,
-      usePublicProfileReadModel = false,
+      usePublicProfileReadModel = true,
       onPlayPublishedSong = context.playPublishedSong,
       onOpenSong = context.openSongRoute,
       onOpenArtist = context.openArtistRoute,
@@ -67,21 +66,21 @@ internal fun NavGraphBuilder.registerProfileRoutes(context: PirateNavHostContext
         else -> trimmed
       }
     }
-    var targetPirateName by remember(targetAddress) { mutableStateOf<String?>(null) }
+    var targetPrimaryName by remember(targetAddress) { mutableStateOf<String?>(null) }
     var targetAvatarUri by remember(targetAddress) { mutableStateOf<String?>(null) }
 
     LaunchedEffect(targetAddress) {
-      targetPirateName = null
+      targetPrimaryName = null
       targetAvatarUri = null
       if (targetAddress.isNullOrBlank()) return@LaunchedEffect
       val (name, avatar) = resolvePublicProfileIdentity(targetAddress)
-      targetPirateName = name
+      targetPrimaryName = name
       targetAvatarUri = avatar
     }
 
     ProfileScreen(
       ethAddress = targetAddress,
-      heavenName = targetPirateName,
+      primaryName = targetPrimaryName,
       avatarUri = targetAvatarUri,
       isAuthenticated = isAuthenticated,
       busy = context.authState.busy,
@@ -120,7 +119,7 @@ internal fun NavGraphBuilder.registerProfileRoutes(context: PirateNavHostContext
         }
       },
       activity = context.activity,
-      tempoAccount = context.tempoAccount,
+      legacySignerAccount = context.legacySignerAccount,
       viewerEthAddress = context.activeAddress,
       usePublicProfileReadModel = true,
       onPlayPublishedSong = context.playPublishedSong,
@@ -153,19 +152,22 @@ internal fun NavGraphBuilder.registerProfileRoutes(context: PirateNavHostContext
 
   composable(PirateRoute.EditProfile.route) {
     val address = context.activeAddress
-    if (!context.authState.hasTempoCredentials() || address.isNullOrBlank()) {
+    val canEditProfile = !address.isNullOrBlank() && context.legacySignerAccount != null
+    if (!canEditProfile) {
+      val message =
+        if (context.authState.hasAnyCredentials()) {
+          "Profile editing is still rolling out on Android."
+        } else {
+          "Sign in to edit your profile"
+        }
       Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text("Sign in with Tempo passkey to edit your profile", color = PirateTokens.colors.textSecondary)
+        Text(message, color = PirateTokens.colors.textSecondary)
       }
     } else {
       ProfileEditScreen(
         activity = context.activity,
         ethAddress = address,
-        tempoAddress = context.authState.tempoAddress,
-        tempoCredentialId = context.authState.tempoCredentialId,
-        tempoPubKeyX = context.authState.tempoPubKeyX,
-        tempoPubKeyY = context.authState.tempoPubKeyY,
-        tempoRpId = context.authState.tempoRpId.ifBlank { TempoPasskeyManager.DEFAULT_RP_ID },
+        legacySignerAccount = context.legacySignerAccount,
         onBack = { context.navController.popBackStack() },
         onSaved = {
           context.onRefreshProfileIdentity()

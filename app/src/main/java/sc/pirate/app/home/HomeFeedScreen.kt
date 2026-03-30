@@ -96,7 +96,7 @@ fun HomeFeedScreen(
   onOpenSongPage: (trackId: String, title: String?, artist: String?) -> Unit,
   isAuthenticated: Boolean,
   ownerAddress: String?,
-  heavenName: String?,
+  primaryName: String?,
   avatarUri: String?,
   tempoAccount: TempoPasskeyManager.PasskeyAccount?,
   hostActivity: FragmentActivity?,
@@ -568,7 +568,7 @@ fun HomeFeedScreen(
       return
     }
     if (!isAuthenticated || ownerAddress.isNullOrBlank() || tempoAccount == null || hostActivity == null) {
-      onShowMessage("Sign in with Tempo passkey to like posts")
+      onShowMessage("Sign in to like posts")
       return
     }
     if (!PostTxRepository.isConfigured()) {
@@ -759,7 +759,7 @@ fun HomeFeedScreen(
       return
     }
     if (!isAuthenticated || ownerAddress.isNullOrBlank() || tempoAccount == null || hostActivity == null) {
-      onShowMessage("Sign in with Tempo passkey to buy songs")
+      onShowMessage("Sign in to buy songs")
       return
     }
 
@@ -959,7 +959,7 @@ fun HomeFeedScreen(
           val bg = if (isAuthenticated) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
           val fg = if (isAuthenticated) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
           val fallbackInitial = when {
-            !heavenName.isNullOrBlank() -> heavenName.take(1)
+            !primaryName.isNullOrBlank() -> primaryName.take(1)
             !ownerAddress.isNullOrBlank() -> ownerAddress.take(2).removePrefix("0x").ifEmpty { "?" }
             else -> "P"
           }.uppercase()

@@ -1,24 +1,7 @@
 package sc.pirate.app.util
 
 import sc.pirate.app.BuildConfig
-
-private const val GOLDSKY_SUBGRAPH_BASE_URL =
-  "https://api.goldsky.com/api/public/project_cmjjtjqpvtip401u87vcp20wd/subgraphs"
-
-private const val DEFAULT_SUBGRAPH_MUSIC_SOCIAL_URL =
-  "$GOLDSKY_SUBGRAPH_BASE_URL/music-social-tempo-launch/20260317-181500/gn"
-
-private const val DEFAULT_SUBGRAPH_PROFILES_URL =
-  "$GOLDSKY_SUBGRAPH_BASE_URL/profiles-tempo-launch/20260317-173310/gn"
-
-private const val DEFAULT_SUBGRAPH_PLAYLISTS_URL =
-  "$GOLDSKY_SUBGRAPH_BASE_URL/playlist-feed-tempo-launch/20260317-173310/gn"
-
-private const val DEFAULT_SUBGRAPH_STUDY_PROGRESS_URL =
-  "$GOLDSKY_SUBGRAPH_BASE_URL/study-progress-tempo-launch/20260317-181500/gn"
-
-private const val DEFAULT_SUBGRAPH_FEED_URL =
-  "$GOLDSKY_SUBGRAPH_BASE_URL/tiktok-feed-tempo-launch/20260317-181500/gn"
+import sc.pirate.app.PirateChainConfig
 
 private fun configuredSubgraphUrl(readValue: () -> String): String? {
   return runCatching(readValue).getOrDefault("").trim().removeSuffix("/").takeIf { it.isNotBlank() }
@@ -31,34 +14,34 @@ private fun withFallback(configured: String?, defaultUrl: String): List<String> 
 fun tempoMusicSocialSubgraphUrls(): List<String> {
   return withFallback(
     configured = configuredSubgraphUrl { BuildConfig.SUBGRAPH_MUSIC_SOCIAL_URL },
-    defaultUrl = DEFAULT_SUBGRAPH_MUSIC_SOCIAL_URL,
+    defaultUrl = PirateChainConfig.STORY_MUSIC_SOCIAL_SUBGRAPH_URL,
   )
 }
 
 fun tempoProfilesSubgraphUrls(): List<String> {
   return withFallback(
     configured = configuredSubgraphUrl { BuildConfig.SUBGRAPH_PROFILES_URL },
-    defaultUrl = DEFAULT_SUBGRAPH_PROFILES_URL,
+    defaultUrl = PirateChainConfig.BASE_PROFILES_SUBGRAPH_URL,
   )
 }
 
 fun tempoPlaylistsSubgraphUrls(): List<String> {
   return withFallback(
     configured = configuredSubgraphUrl { BuildConfig.SUBGRAPH_PLAYLISTS_URL },
-    defaultUrl = DEFAULT_SUBGRAPH_PLAYLISTS_URL,
+    defaultUrl = PirateChainConfig.STORY_PLAYLISTS_SUBGRAPH_URL,
   )
 }
 
 fun tempoStudyProgressSubgraphUrl(): String {
   return withFallback(
     configured = configuredSubgraphUrl { BuildConfig.SUBGRAPH_STUDY_PROGRESS_URL },
-    defaultUrl = DEFAULT_SUBGRAPH_STUDY_PROGRESS_URL,
+    defaultUrl = PirateChainConfig.STORY_STUDY_PROGRESS_SUBGRAPH_URL,
   ).first()
 }
 
 fun tempoFeedSubgraphUrls(): List<String> {
   return withFallback(
     configured = configuredSubgraphUrl { BuildConfig.SUBGRAPH_FEED_URL },
-    defaultUrl = DEFAULT_SUBGRAPH_FEED_URL,
+    defaultUrl = PirateChainConfig.STORY_FEED_SUBGRAPH_URL,
   )
 }

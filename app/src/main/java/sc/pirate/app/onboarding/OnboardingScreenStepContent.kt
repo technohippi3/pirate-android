@@ -8,8 +8,10 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.res.stringResource
+import kotlinx.coroutines.launch
 import sc.pirate.app.AppLocaleManager
 import sc.pirate.app.R
+import sc.pirate.app.auth.privy.PrivyRelayClient
 import sc.pirate.app.onboarding.steps.AgeStep
 import sc.pirate.app.onboarding.steps.AvatarStep
 import sc.pirate.app.onboarding.steps.DoneStep
@@ -17,22 +19,25 @@ import sc.pirate.app.onboarding.steps.GenderStep
 import sc.pirate.app.onboarding.steps.LanguagesStep
 import sc.pirate.app.onboarding.steps.LocationResult
 import sc.pirate.app.onboarding.steps.LocationStep
+import sc.pirate.app.onboarding.steps.NameAvailabilityResult
 import sc.pirate.app.onboarding.steps.NameStep
-import sc.pirate.app.profile.TempoNameRegistryApi
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
-import kotlinx.coroutines.launch
+import sc.pirate.app.profile.BaseNameRegistryApi
+import sc.pirate.app.profile.HeavenNamesApi
+
+private data class OnboardingNameClaimResult(
+  val success: Boolean,
+  val claimedLabel: String? = null,
+  val claimedTld: String? = null,
+  val error: String? = null,
+)
 
 @Composable
 internal fun OnboardingStepContent(
   step: OnboardingStep,
   submitting: Boolean,
   error: String?,
+  ownerAddress: String,
   selectedNameTld: String,
-  canUseTempoNameRegistration: Boolean,
-  activity: androidx.fragment.app.FragmentActivity?,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
-  onboardingSessionKey: SessionKeyManager.SessionKey?,
   claimedName: String,
   claimedTld: String,
   age: Int,
@@ -46,20 +51,15 @@ internal fun OnboardingStepContent(
   onGenderChange: (String) -> Unit,
   onSelectedLocationChange: (LocationResult?) -> Unit,
   onLocationChange: (String) -> Unit,
-  onOnboardingSessionKeyChange: (SessionKeyManager.SessionKey?) -> Unit,
-  onSessionSetupStatusChange: (SessionSetupStatus) -> Unit,
-  onSessionSetupErrorChange: (String?) -> Unit,
   onStepChange: (OnboardingStep) -> Unit,
   onSubmittingChange: (Boolean) -> Unit,
   onErrorChange: (String?) -> Unit,
-  onApplySessionResult: (OnboardingSessionResult?) -> Unit,
   context: Context,
-  onEnsureMessagingInbox: (suspend (SessionKeyManager.SessionKey?) -> String?)?,
+  onEnsureMessagingInbox: (suspend () -> String?)?,
   onComplete: () -> Unit,
 ) {
   val scope = rememberCoroutineScope()
   val registrationFailedError = stringResource(R.string.onboarding_name_error_registration_failed)
-  val tempoRequiredError = stringResource(R.string.onboarding_name_error_tempo_required)
   val saveProfileError = stringResource(R.string.onboarding_error_save_profile)
   val avatarUploadError = stringResource(R.string.onboarding_error_avatar_upload)
   val finishOnboardingError = stringResource(R.string.onboarding_error_finish)
@@ -76,67 +76,33 @@ internal fun OnboardingStepContent(
         submitting = submitting,
         error = error,
         selectedTld = selectedNameTld,
-        showPirateOption = canUseTempoNameRegistration,
         onTldChange = onSelectedNameTldChange,
         onCheckAvailable = { label, tld ->
-          if (canUseTempoNameRegistration) {
-            TempoNameRegistryApi.checkNameAvailable(label = label, tld = tld)
-          } else {
-            false
-          }
+          checkOnboardingNameAvailability(
+            label = label,
+            tld = tld,
+          )
         },
         onContinue = { label, tld ->
           scope.launch {
             onSubmittingChange(true)
             onErrorChange(null)
             try {
-              val normalizedTld = tld.trim().lowercase()
-              val registrationError =
-                when {
-                  canUseTempoNameRegistration -> {
-                    val account = tempoAccount ?: return@launch
-                    val hostActivity = activity ?: return@launch
-                    val existingSession =
-                      resolveKnownOnboardingSessionKey(
-                        account = account,
-                        hostActivity = hostActivity,
-                        currentSessionKey = onboardingSessionKey,
-                      )
-                    val result =
-                      TempoNameRegistryApi.register(
-                        activity = hostActivity,
-                        account = account,
-                        label = label,
-                        tld = normalizedTld,
-                        rpId = account.rpId,
-                        sessionKey = existingSession,
-                        bootstrapSessionKey = false,
-                        preferSelfPay = true,
-                      )
-                    if (result.success) {
-                      if (isUsableOnboardingSessionKey(existingSession, ownerAddress = account.address)) {
-                        onOnboardingSessionKeyChange(existingSession)
-                        onSessionSetupStatusChange(SessionSetupStatus.READY)
-                      } else {
-                        onOnboardingSessionKeyChange(null)
-                        onSessionSetupStatusChange(SessionSetupStatus.CHECKING)
-                      }
-                      onSessionSetupErrorChange(null)
-                      onClaimedNameChange(label)
-                      onClaimedTldChange(result.tld ?: normalizedTld)
-                      null
-                    } else {
-                      result.error ?: registrationFailedError
-                    }
-                  }
+              val claimResult =
+                registerOnboardingName(
+                  context = context,
+                  ownerAddress = ownerAddress,
+                  label = label,
+                  tld = tld,
+                  registrationFailedError = registrationFailedError,
+                )
 
-                  else -> tempoRequiredError
-                }
-
-              if (registrationError == null) {
+              if (claimResult.success) {
+                onClaimedNameChange(claimResult.claimedLabel ?: label)
+                onClaimedTldChange(claimResult.claimedTld ?: tld.trim().lowercase())
                 onStepChange(OnboardingStep.AGE)
               } else {
-                onErrorChange(registrationError)
+                onErrorChange(claimResult.error ?: registrationFailedError)
               }
             } catch (e: Exception) {
               onErrorChange(e.message ?: registrationFailedError)
@@ -182,18 +148,13 @@ internal fun OnboardingStepContent(
               val writeResult =
                 submitOnboardingProfileStep(
                   context = context,
-                  activity = activity,
-                  account = tempoAccount,
-                  currentSessionKey = onboardingSessionKey,
+                  ownerAddress = ownerAddress,
                   age = age,
                   gender = gender,
                   selectedLocation = selectedLocation,
                   languages = langs,
                   claimedName = claimedName,
-                  claimedTld = claimedTld,
-                  locationLabel = location,
                 )
-              onApplySessionResult(writeResult.sessionResult)
               if (!writeResult.success) {
                 onErrorChange(writeResult.error ?: saveProfileError)
                 return@launch
@@ -222,26 +183,22 @@ internal fun OnboardingStepContent(
               val writeResult =
                 submitOnboardingAvatarContinue(
                   context = context,
-                  activity = activity,
-                  account = tempoAccount,
-                  currentSessionKey = onboardingSessionKey,
+                  ownerAddress = ownerAddress,
                   claimedName = claimedName,
                   claimedTld = claimedTld,
+                  locationLabel = location,
                   avatarBase64 = base64,
                 )
-              onApplySessionResult(writeResult.sessionResult)
               if (!writeResult.success) {
                 onErrorChange(writeResult.error ?: avatarUploadError)
                 return@launch
               }
-              val messagingError = onEnsureMessagingInbox?.invoke(onboardingSessionKey)
+              val messagingError = onEnsureMessagingInbox?.invoke()
               if (!messagingError.isNullOrBlank()) {
                 onErrorChange(messagingError)
                 return@launch
               }
-              tempoAccount?.address?.let { owner ->
-                markOnboardingComplete(context, owner)
-              }
+              markOnboardingComplete(context, ownerAddress)
               onStepChange(OnboardingStep.DONE)
             } catch (e: Exception) {
               onErrorChange(e.message ?: avatarUploadError)
@@ -258,25 +215,21 @@ internal fun OnboardingStepContent(
               val writeResult =
                 submitOnboardingAvatarSkip(
                   context = context,
-                  activity = activity,
-                  account = tempoAccount,
-                  currentSessionKey = onboardingSessionKey,
+                  ownerAddress = ownerAddress,
                   claimedName = claimedName,
                   claimedTld = claimedTld,
+                  locationLabel = location,
                 )
-              onApplySessionResult(writeResult.sessionResult)
               if (!writeResult.success) {
                 onErrorChange(writeResult.error ?: finishOnboardingError)
                 return@launch
               }
-              val messagingError = onEnsureMessagingInbox?.invoke(onboardingSessionKey)
+              val messagingError = onEnsureMessagingInbox?.invoke()
               if (!messagingError.isNullOrBlank()) {
                 onErrorChange(messagingError)
                 return@launch
               }
-              tempoAccount?.address?.let { owner ->
-                markOnboardingComplete(context, owner)
-              }
+              markOnboardingComplete(context, ownerAddress)
               onStepChange(OnboardingStep.DONE)
             } finally {
               onSubmittingChange(false)
@@ -290,5 +243,97 @@ internal fun OnboardingStepContent(
         onFinished = onComplete,
       )
     }
+  }
+}
+
+private suspend fun checkOnboardingNameAvailability(
+  label: String,
+  tld: String,
+): NameAvailabilityResult {
+  return when (tld.trim().lowercase()) {
+    "pirate" ->
+      if (BaseNameRegistryApi.checkPirateNameAvailable(label)) {
+        NameAvailabilityResult.Available
+      } else {
+        NameAvailabilityResult.Unavailable()
+      }
+
+    "heaven" ->
+      if (HeavenNamesApi.checkNameAvailable(label)) {
+        NameAvailabilityResult.Available
+      } else {
+        NameAvailabilityResult.Unavailable()
+      }
+
+    else ->
+      NameAvailabilityResult.Unavailable(
+        message = "Unsupported TLD: .$tld",
+      )
+  }
+}
+
+private suspend fun registerOnboardingName(
+  context: Context,
+  ownerAddress: String,
+  label: String,
+  tld: String,
+  registrationFailedError: String,
+): OnboardingNameClaimResult {
+  val normalizedTld = tld.trim().lowercase()
+  if (ownerAddress.isBlank()) {
+    return OnboardingNameClaimResult(
+      success = false,
+      error = "Sign in to continue onboarding.",
+    )
+  }
+
+  return when (normalizedTld) {
+    "pirate" -> {
+      val result =
+        runCatching {
+          val quote = BaseNameRegistryApi.quotePirateRegistration(label)
+          PrivyRelayClient.registerPirateName(context = context, quote = quote)
+        }
+      val registered = result.getOrNull()
+      if (registered == null) {
+        OnboardingNameClaimResult(
+          success = false,
+          error = result.exceptionOrNull()?.message ?: registrationFailedError,
+        )
+      } else {
+        OnboardingNameClaimResult(
+          success = true,
+          claimedLabel = registered.label,
+          claimedTld = registered.tld,
+        )
+      }
+    }
+
+    "heaven" -> {
+      val result =
+        HeavenNamesApi.register(
+          context = context,
+          ownerAddress = ownerAddress,
+          label = label,
+        )
+      if (!result.success) {
+        OnboardingNameClaimResult(
+          success = false,
+          error = result.error ?: registrationFailedError,
+        )
+      } else {
+        OnboardingNameClaimResult(
+          success = true,
+          claimedLabel = result.label ?: label,
+          claimedTld = "heaven",
+        )
+      }
+    }
+
+    else ->
+      OnboardingNameClaimResult(
+        success = false,
+        error = "Unsupported TLD: .$normalizedTld",
+      )
   }
 }

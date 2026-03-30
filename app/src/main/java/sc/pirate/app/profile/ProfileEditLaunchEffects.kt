@@ -13,11 +13,11 @@ import kotlinx.coroutines.withContext
 internal fun ProfileEditLaunchEffects(
   activity: FragmentActivity,
   ethAddress: String,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
+  legacySignerAccount: TempoPasskeyManager.PasskeyAccount?,
   onSetLoading: (Boolean) -> Unit,
   onSetError: (String?) -> Unit,
   onSetDraft: (ContractProfileData) -> Unit,
-  onSetPirateName: (String?) -> Unit,
+  onSetPrimaryName: (String?) -> Unit,
   onSetProfileNode: (String?) -> Unit,
   onSetAvatarUri: (String?) -> Unit,
   onSetAvatarPreviewBitmap: (android.graphics.Bitmap?) -> Unit,
@@ -34,7 +34,7 @@ internal fun ProfileEditLaunchEffects(
   onSetSchoolDirty: (Boolean) -> Unit,
   onSetSessionKey: (SessionKeyManager.SessionKey?) -> Unit,
 ) {
-  LaunchedEffect(ethAddress, tempoAccount?.address, tempoAccount?.credentialId) {
+  LaunchedEffect(ethAddress, legacySignerAccount?.address, legacySignerAccount?.credentialId) {
     onSetLoading(true)
     onSetError(null)
     runCatching {
@@ -48,7 +48,7 @@ internal fun ProfileEditLaunchEffects(
         val schoolRecord = node?.let { TempoNameRecordsApi.getTextRecord(it, "heaven.school") }
         LoadedProfileContext(
           profile = profile,
-          heavenName = name,
+          primaryName = name,
           node = node,
           avatarRecord = avatarRecord,
           coverRecord = coverRecord,
@@ -60,7 +60,7 @@ internal fun ProfileEditLaunchEffects(
       .onSuccess { loadedContext ->
         val loadedProfile = loadedContext.profile
         onSetDraft(loadedProfile)
-        onSetPirateName(loadedContext.heavenName)
+        onSetPrimaryName(loadedContext.primaryName)
         onSetProfileNode(loadedContext.node)
 
         onSetAvatarUri(loadedContext.avatarRecord?.ifBlank { null } ?: loadedProfile.photoUri.ifBlank { null })
@@ -92,9 +92,9 @@ internal fun ProfileEditLaunchEffects(
         onSetSchoolDirty(false)
 
         // Load session key for silent signing.
-        if (tempoAccount != null) {
+        if (legacySignerAccount != null) {
           val loaded = SessionKeyManager.load(activity)
-          if (SessionKeyManager.isValid(loaded, ownerAddress = tempoAccount.address) &&
+          if (SessionKeyManager.isValid(loaded, ownerAddress = legacySignerAccount.address) &&
             loaded?.keyAuthorization?.isNotEmpty() == true
           ) {
             onSetSessionKey(loaded)

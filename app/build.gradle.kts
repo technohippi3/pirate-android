@@ -36,10 +36,10 @@ android {
 
   defaultConfig {
     applicationId = "sc.pirate.app"
-    minSdk = 24
+    minSdk = 28
     targetSdk = 36
-    versionCode = 2
-    versionName = "0.1.0-alpha.2"
+    versionCode = 5
+    versionName = "0.1.0-alpha.3"
 
     fun projectStringProperty(name: String): String? =
       (project.findProperty(name) as String?)
@@ -52,28 +52,52 @@ android {
 
     val subgraphMusicSocialUrl =
       projectStringProperty("SUBGRAPH_MUSIC_SOCIAL_URL")
-        ?: goldskySubgraphUrl("music-social-tempo-launch", "20260317-181500")
+        ?: goldskySubgraphUrl("music-social-story-aeneid", "20260330-175305")
     buildConfigField("String", "SUBGRAPH_MUSIC_SOCIAL_URL", "\"$subgraphMusicSocialUrl\"")
 
     val subgraphProfilesUrl =
       projectStringProperty("SUBGRAPH_PROFILES_URL")
-        ?: goldskySubgraphUrl("profiles-tempo-launch", "20260317-173310")
+        ?: goldskySubgraphUrl("profiles-base-sepolia", "20260328-185319")
     buildConfigField("String", "SUBGRAPH_PROFILES_URL", "\"$subgraphProfilesUrl\"")
 
     val subgraphPlaylistsUrl =
       projectStringProperty("SUBGRAPH_PLAYLISTS_URL")
-        ?: goldskySubgraphUrl("playlist-feed-tempo-launch", "20260317-173310")
+        ?: goldskySubgraphUrl("playlist-feed-story-aeneid", "20260329-001500")
     buildConfigField("String", "SUBGRAPH_PLAYLISTS_URL", "\"$subgraphPlaylistsUrl\"")
 
     val subgraphStudyProgressUrl =
       projectStringProperty("SUBGRAPH_STUDY_PROGRESS_URL")
-        ?: goldskySubgraphUrl("study-progress-tempo-launch", "20260317-181500")
+        ?: goldskySubgraphUrl("study-progress-story-aeneid", "20260328-194600")
     buildConfigField("String", "SUBGRAPH_STUDY_PROGRESS_URL", "\"$subgraphStudyProgressUrl\"")
 
     val subgraphFeedUrl =
       projectStringProperty("SUBGRAPH_FEED_URL")
-        ?: goldskySubgraphUrl("tiktok-feed-tempo-launch", "20260317-181500")
+        ?: goldskySubgraphUrl("tiktok-feed-story-aeneid", "20260328-194600")
     buildConfigField("String", "SUBGRAPH_FEED_URL", "\"$subgraphFeedUrl\"")
+
+    val privyEnabled =
+      (project.findProperty("PRIVY_ENABLED") as String?)
+        ?.trim()
+        ?.lowercase()
+        ?.let { it == "true" || it == "1" }
+        ?: true
+    buildConfigField("boolean", "PRIVY_ENABLED", privyEnabled.toString())
+
+    val privyAppId =
+      projectStringProperty("PRIVY_APP_ID")
+        ?: "cmnbdx9xk00ty0clapn2q8pdj"
+    buildConfigField("String", "PRIVY_APP_ID", "\"$privyAppId\"")
+
+    val privyAppClientId =
+      projectStringProperty("PRIVY_APP_CLIENT_ID")
+        ?: "client-WY6Xkpp2wLef8Y9cWBrZ1GhnmqAtnVh9YisfZ2dA3c7DW"
+    buildConfigField("String", "PRIVY_APP_CLIENT_ID", "\"$privyAppClientId\"")
+
+    val privyRedirectScheme =
+      projectStringProperty("PRIVY_REDIRECT_SCHEME")
+        ?: "pirate"
+    buildConfigField("String", "PRIVY_REDIRECT_SCHEME", "\"$privyRedirectScheme\"")
+    manifestPlaceholders["privyRedirectScheme"] = privyRedirectScheme
 
     val tempoFollowV1 = projectStringProperty("TEMPO_FOLLOW_V1")
       ?: "0xB65f7DAD7278ce2b9c14De2b68a3dBc8964F208c"
@@ -197,8 +221,9 @@ dependencies {
   implementation("androidx.appcompat:appcompat:1.7.1")
 
   // Native passkeys
-  implementation("androidx.credentials:credentials:1.2.2")
-  implementation("androidx.credentials:credentials-play-services-auth:1.2.2")
+  implementation("androidx.credentials:credentials:1.5.0")
+  implementation("androidx.credentials:credentials-play-services-auth:1.5.0")
+  implementation("io.privy:privy-core:0.9.2")
   implementation("com.upokecenter:cbor:4.5.3") {
     exclude(group = "com.github.peteroupc", module = "datautilities")
   }

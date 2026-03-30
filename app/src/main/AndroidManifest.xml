@@ -1,5 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  xmlns:tools="http://schemas.android.com/tools">
+
+  <queries>
+    <intent>
+      <action android:name="androidx.browser.customtabs.action.CustomTabsService" />
+    </intent>
+    <intent>
+      <action android:name="android.support.customtabs.action.CustomTabsService" />
+    </intent>
+  </queries>
 
   <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -7,11 +17,13 @@
   <uses-permission android:name="android.permission.RECORD_AUDIO" />
   <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
   <uses-permission android:name="android.permission.READ_MEDIA_AUDIO" />
-  <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
   <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
   <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="28" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+  <uses-permission
+    android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION"
+    tools:node="remove" />
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
   <application
@@ -21,6 +33,10 @@
     android:roundIcon="@mipmap/ic_launcher_round"
     android:supportsRtl="true"
     android:theme="@style/Theme.Pirate">
+
+    <property
+      android:name="asset_statements"
+      android:resource="@string/asset_statements" />
 
     <activity
       android:name=".MainActivity"
@@ -42,11 +58,31 @@
       </intent-filter>
     </activity>
 
+    <activity
+      android:name="io.privy.sdk.oAuth.PrivyRedirectActivity"
+      android:exported="true"
+      android:launchMode="singleTask">
+      <intent-filter>
+        <action android:name="android.intent.action.VIEW" />
+        <category android:name="android.intent.category.DEFAULT" />
+        <category android:name="android.intent.category.BROWSABLE" />
+        <data android:scheme="${privyRedirectScheme}" />
+      </intent-filter>
+    </activity>
+
     <!-- Media playback foreground service -->
     <service
       android:name=".player.PlaybackService"
       android:exported="false"
       android:foregroundServiceType="mediaPlayback" />
+
+    <activity
+      android:name="io.agora.rtc2.extensions.MediaProjectionMgr$LocalScreenCaptureAssistantActivity"
+      tools:node="remove" />
+
+    <service
+      android:name="io.agora.rtc2.extensions.MediaProjectionMgr$LocalScreenSharingService"
+      tools:node="remove" />
 
     <!-- Notification listener needed for third-party media session access (Spotify) -->
     <service

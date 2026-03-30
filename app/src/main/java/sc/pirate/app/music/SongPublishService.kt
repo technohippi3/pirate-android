@@ -295,7 +295,7 @@ object SongPublishService {
     onProgress(35)
 
     val signingActivity = hostActivity ?: throw IllegalStateException("Host activity is required for Tempo publish signing")
-    val account = tempoAccount ?: throw IllegalStateException("Tempo passkey account is required for Tempo publish signing")
+    val account = tempoAccount ?: throw IllegalStateException("Publishing is not available in this Android build yet.")
     if (!account.address.equals(userAddress, ignoreCase = true)) {
       throw IllegalStateException("Active passkey account does not match publish owner")
     }

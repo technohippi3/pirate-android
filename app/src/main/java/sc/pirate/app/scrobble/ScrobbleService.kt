@@ -4,9 +4,9 @@ import android.content.Context
 import android.util.Log
 import androidx.fragment.app.FragmentActivity
 import sc.pirate.app.BuildConfig
+import sc.pirate.app.auth.LegacySignerAccountStore
 import sc.pirate.app.auth.PirateAuthUiState
 import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoAccountFactory
 import sc.pirate.app.tempo.TempoPasskeyManager
 import sc.pirate.app.player.PlayerController
 import kotlinx.coroutines.CoroutineScope
@@ -130,18 +130,15 @@ class ScrobbleService(
   private suspend fun submit(scrobble: ReadyScrobble) {
     submitMutex.withLock {
       val auth = getAuthState()
-      val tempoAccount =
-        TempoAccountFactory.fromSession(
-          tempoAddress = auth.tempoAddress,
-          tempoCredentialId = auth.tempoCredentialId,
-          tempoPubKeyX = auth.tempoPubKeyX,
-          tempoPubKeyY = auth.tempoPubKeyY,
-          tempoRpId = auth.tempoRpId.ifBlank { TempoPasskeyManager.DEFAULT_RP_ID },
+      val legacySignerAccount =
+        LegacySignerAccountStore.loadAccount(
+          context = appContext,
+          ownerAddress = auth.activeAddress(),
         )
 
-      if (tempoAccount == null) {
-        Log.d(TAG, "Scrobble skipped: no Tempo passkey account")
-        if (BuildConfig.DEBUG) onShowMessage("Scrobble skipped (no Tempo account)")
+      if (legacySignerAccount == null) {
+        Log.d(TAG, "Scrobble skipped: no Android signing path")
+        if (BuildConfig.DEBUG) onShowMessage("Scrobble skipped (no Android signing path)")
         return
       }
 
@@ -158,7 +155,7 @@ class ScrobbleService(
       var usedPasskeyPath = false
       var result: TempoScrobbleSubmitResult
 
-      val activeSession = ensureSessionKey(tempoAccount)
+      val activeSession = ensureSessionKey(legacySignerAccount)
       if (activeSession == null) {
         if (hostActivity == null) {
           Log.w(TAG, "Scrobble paused: session key unavailable and no activity for passkey prompt")
@@ -168,7 +165,7 @@ class ScrobbleService(
         result =
           TempoScrobbleApi.submitScrobbleWithPasskey(
             activity = hostActivity,
-            account = tempoAccount,
+            account = legacySignerAccount,
             input = input,
           )
         if (!result.success && shouldRetryPasskeySubmission(result.error)) {
@@ -176,14 +173,14 @@ class ScrobbleService(
           result =
             TempoScrobbleApi.submitScrobbleWithPasskey(
               activity = hostActivity,
-              account = tempoAccount,
+              account = legacySignerAccount,
               input = input,
             )
         }
       } else {
         result =
           TempoScrobbleApi.submitScrobble(
-            account = tempoAccount,
+            account = legacySignerAccount,
             sessionKey = activeSession,
             input = input,
           )
@@ -192,11 +189,11 @@ class ScrobbleService(
           Log.w(TAG, "Scrobble session submit failed (${result.error}); refreshing session key and retrying once")
           hostActivity?.let { SessionKeyManager.clear(it) }
           sessionKey = null
-          val refreshedSession = ensureSessionKey(tempoAccount)
+          val refreshedSession = ensureSessionKey(legacySignerAccount)
           if (refreshedSession != null) {
             result =
               TempoScrobbleApi.submitScrobble(
-                account = tempoAccount,
+                account = legacySignerAccount,
                 sessionKey = refreshedSession,
                 input = input,
               )

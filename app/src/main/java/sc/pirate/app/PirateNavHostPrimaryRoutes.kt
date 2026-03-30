@@ -69,9 +69,9 @@ internal fun NavGraphBuilder.registerPrimaryRoutes(context: PirateNavHostContext
       },
       isAuthenticated = context.authState.hasAnyCredentials(),
       ownerAddress = context.authState.activeAddress(),
-      heavenName = context.heavenName,
+      primaryName = context.primaryName,
       avatarUri = context.avatarUri,
-      tempoAccount = context.tempoAccount,
+      tempoAccount = context.legacySignerAccount,
       hostActivity = context.activity,
       onRequireVerification = {
         context.navController.navigate(PirateRoute.VerifyIdentity.route) { launchSingleTop = true }
@@ -101,11 +101,11 @@ internal fun NavGraphBuilder.registerPrimaryRoutes(context: PirateNavHostContext
   }
 
   composable(PirateRoute.Music.route) {
-    val isAuthenticated = context.authState.hasTempoCredentials()
+    val isAuthenticated = context.legacySignerAccount != null
     MusicScreen(
       player = context.player,
       ownerEthAddress = context.authState.activeAddress(),
-      heavenName = context.heavenName,
+      primaryName = context.primaryName,
       avatarUri = context.avatarUri,
       isAuthenticated = isAuthenticated,
       onShowMessage = context.onShowMessage,
@@ -137,7 +137,7 @@ internal fun NavGraphBuilder.registerPrimaryRoutes(context: PirateNavHostContext
         context.navController.navigate(PirateRoute.Artist.buildRoute(artistName)) { launchSingleTop = true }
       },
       hostActivity = context.activity,
-      tempoAccount = context.tempoAccount,
+      tempoAccount = context.legacySignerAccount,
     )
   }
 
@@ -173,7 +173,7 @@ internal fun NavGraphBuilder.registerPrimaryRoutes(context: PirateNavHostContext
       activity = context.activity,
       isAuthenticated = isAuthenticated,
       walletAddress = context.activeAddress,
-      account = context.tempoAccount,
+      account = context.legacySignerAccount,
       onClose = { context.navController.popBackStack() },
       onShowMessage = context.onShowMessage,
     )
@@ -184,7 +184,7 @@ internal fun NavGraphBuilder.registerPrimaryRoutes(context: PirateNavHostContext
     NameStoreScreen(
       activity = context.activity,
       isAuthenticated = isAuthenticated,
-      account = context.tempoAccount,
+      account = context.legacySignerAccount,
       onClose = { context.navController.popBackStack() },
       onShowMessage = context.onShowMessage,
     )
@@ -196,7 +196,7 @@ internal fun NavGraphBuilder.registerPrimaryRoutes(context: PirateNavHostContext
       activity = context.activity,
       isAuthenticated = isAuthenticated,
       walletAddress = context.activeAddress,
-      account = context.tempoAccount,
+      account = context.legacySignerAccount,
       onClose = { context.navController.popBackStack() },
       onCreditsPurchased = { context.navController.popBackStack() },
       onShowMessage = context.onShowMessage,
@@ -211,7 +211,7 @@ internal fun NavGraphBuilder.registerPrimaryRoutes(context: PirateNavHostContext
       authBusy = context.authState.busy,
       miniPlayerVisible = context.miniPlayerVisible,
       hostActivity = context.activity,
-      tempoAccount = context.tempoAccount,
+      tempoAccount = context.legacySignerAccount,
       onLearnSessionVisibilityChange = context.onLearnSessionVisibilityChange,
       onOpenStudySet = { studySetRef, trackId, language, version, title, artist ->
         context.navController.navigate(
@@ -301,7 +301,7 @@ internal fun NavGraphBuilder.registerPrimaryRoutes(context: PirateNavHostContext
       initialArtist = initialArtist,
       miniPlayerVisible = context.miniPlayerVisible,
       hostActivity = context.activity,
-      tempoAccount = context.tempoAccount,
+      tempoAccount = context.legacySignerAccount,
       onLearnSessionVisibilityChange = context.onLearnSessionVisibilityChange,
       onExitToLearn = {
         context.navController.navigate(PirateRoute.Learn.route) {
@@ -409,7 +409,7 @@ internal fun NavGraphBuilder.registerPrimaryRoutes(context: PirateNavHostContext
     ScheduleScreen(
       isAuthenticated = isAuthenticated,
       userAddress = context.activeAddress,
-      tempoAccount = context.tempoAccount,
+      tempoAccount = context.legacySignerAccount,
       onOpenDrawer = context.onOpenDrawer,
       onOpenAvailability = {
         context.navController.navigate(PirateRoute.ScheduleAvailability.route) { launchSingleTop = true }
@@ -435,7 +435,7 @@ internal fun NavGraphBuilder.registerPrimaryRoutes(context: PirateNavHostContext
     ScheduleAvailabilityScreen(
       isAuthenticated = isAuthenticated,
       userAddress = context.activeAddress,
-      tempoAccount = context.tempoAccount,
+      tempoAccount = context.legacySignerAccount,
       onClose = { context.navController.popBackStack() },
       onShowMessage = context.onShowMessage,
     )

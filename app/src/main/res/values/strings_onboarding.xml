@@ -22,7 +22,9 @@
   <string name="onboarding_name_error_taken">Name is taken</string>
   <string name="onboarding_name_error_check_failed">Could not check availability</string>
   <string name="onboarding_name_error_registration_failed">Registration failed</string>
-  <string name="onboarding_name_error_tempo_required">Tempo account required for onboarding.</string>
+  <string name="onboarding_name_error_pirate_disabled">.pirate registration is temporarily unavailable on Android.</string>
+  <string name="onboarding_name_error_legacy_signer_required">Legacy signer account required for onboarding.</string>
+  <string name="onboarding_name_pirate_disabled">.pirate claims stay disabled on Android until the permit relay migration is finished.</string>
 
   <string name="onboarding_age_title">How old are you?</string>
   <string name="onboarding_age_label">Age</string>

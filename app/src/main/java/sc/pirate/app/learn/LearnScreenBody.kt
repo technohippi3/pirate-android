@@ -22,7 +22,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import sc.pirate.app.theme.PiratePalette
 import sc.pirate.app.ui.PirateMobileHeader
-import sc.pirate.app.ui.PirateOutlinedButton
 import sc.pirate.app.ui.PiratePrimaryButton
 
 @Composable
@@ -105,19 +104,11 @@ internal fun LearnScreenBody(
         )
         Spacer(modifier = Modifier.height(24.dp))
         PiratePrimaryButton(
-          text = "Sign Up",
+          text = "Continue",
           onClick = onRegister,
           enabled = !authBusy,
           modifier = Modifier.fillMaxWidth(0.7f),
         )
-        Spacer(modifier = Modifier.height(12.dp))
-        PirateOutlinedButton(
-          onClick = onLogin,
-          enabled = !authBusy,
-          modifier = Modifier.fillMaxWidth(0.7f),
-        ) {
-          Text("Sign In")
-        }
         if (authBusy) {
           Spacer(modifier = Modifier.height(16.dp))
           CircularProgressIndicator()

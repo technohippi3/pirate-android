@@ -103,8 +103,8 @@ internal fun NameStoreContent(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp),
       ) {
-        PirateToggleChip(selected = selectedTld == "heaven", onClick = { onSelectTld("heaven") }, label = ".heaven")
         PirateToggleChip(selected = selectedTld == "pirate", onClick = { onSelectTld("pirate") }, label = ".pirate")
+        PirateToggleChip(selected = selectedTld == "heaven", onClick = { onSelectTld("heaven") }, label = ".heaven")
       }
       Spacer(Modifier.height(20.dp))
 

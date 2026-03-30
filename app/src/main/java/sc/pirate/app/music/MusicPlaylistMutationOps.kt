@@ -133,7 +133,7 @@ internal suspend fun changePlaylistCoverWithUi(
 
   val owner = ownerEthAddress?.trim()?.lowercase().orEmpty()
   if (!isAuthenticated || owner.isBlank() || tempoAccount == null) {
-    onShowMessage("Sign in with Tempo passkey to update playlist cover")
+    onShowMessage("Sign in to update playlist cover")
     return false
   }
 
@@ -230,7 +230,7 @@ internal suspend fun deletePlaylistWithUi(
 
   val owner = ownerEthAddress?.trim()?.lowercase().orEmpty()
   if (!isAuthenticated || owner.isBlank() || tempoAccount == null) {
-    onShowMessage("Sign in with Tempo passkey to delete playlists")
+    onShowMessage("Sign in to delete playlists")
     return false
   }
 

@@ -26,7 +26,7 @@ internal fun MusicHomeRoute(
   onOpenDrawer: () -> Unit,
   isAuthenticated: Boolean,
   ownerEthAddress: String?,
-  heavenName: String?,
+  primaryName: String?,
   avatarUri: String?,
   onNavigateSearch: () -> Unit,
   onNavigateLibrary: () -> Unit,
@@ -40,7 +40,7 @@ internal fun MusicHomeRoute(
     title = "Music",
     isAuthenticated = isAuthenticated,
     ethAddress = ownerEthAddress,
-    heavenName = heavenName,
+    primaryName = primaryName,
     avatarUri = avatarUri,
     onAvatarPress = onOpenDrawer,
     rightSlot = {
