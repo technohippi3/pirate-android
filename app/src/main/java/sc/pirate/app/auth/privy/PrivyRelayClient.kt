@@ -1,11 +1,22 @@
 package sc.pirate.app.auth.privy
 
 import android.content.Context
+import android.util.Log
+import io.privy.auth.PrivyUser
+import io.privy.auth.generateAuthorizationSignature
 import io.privy.wallet.ethereum.EmbeddedEthereumWallet
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.buildJsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import sc.pirate.app.BuildConfig
 import sc.pirate.app.PirateChainConfig
 import sc.pirate.app.profile.BaseNameRegistrationQuote
 import sc.pirate.app.profile.ContractProfileData
@@ -13,6 +24,8 @@ import sc.pirate.app.profile.ProfileContractApi
 import sc.pirate.app.profile.TempoNameRecordsApi
 import sc.pirate.app.profile.TempoProfileContractApi
 import sc.pirate.app.util.HttpClients
+import java.util.UUID
+import io.privy.wallet.walletApi.WalletApiPayload
 
 internal data class PrivyRelayLanguageEntry(
   val code: String,
@@ -37,103 +50,133 @@ internal data class PrivyRelayNameRegistrationResult(
 )
 
 internal object PrivyRelayClient {
-  private const val RELAY_URL = "https://pirate.sc/api/privy-relay"
+  private const val TAG = "PrivyRelayClient"
+  private const val PRIVY_AUTHORIZATION_API_BASE_URL = "https://api.privy.io"
   private val jsonType = "application/json; charset=utf-8".toMediaType()
+  private val canonicalJson =
+    Json {
+      encodeDefaults = false
+      explicitNulls = false
+    }
+
+  private fun relayUrl(): String {
+    return BuildConfig.PRIVY_RELAY_URL.trim().ifBlank { "https://pirate.sc/api/privy-relay" }
+  }
+
+  private fun summarizeToken(token: String?): String {
+    if (token.isNullOrBlank()) return "absent"
+    val segments = token.count { it == '.' } + 1
+    return "present(len=${token.length},segments=$segments)"
+  }
+
+  private fun summarizePayload(payload: JSONObject): String {
+    val intentType = payload.optJSONObject("intent")?.optString("type").orEmpty()
+    val tx = payload.optJSONObject("transaction")
+    val txTo = tx?.optString("to").orEmpty()
+    val txValue = tx?.optString("value").orEmpty().ifBlank { "0" }
+    return "intent=$intentType wallet=${payload.optString("walletAddress")} privyWalletId=${payload.optString("privyWalletId")} txTo=$txTo txValue=$txValue"
+  }
 
   suspend fun registerPirateName(
     context: Context,
     quote: BaseNameRegistrationQuote,
-  ): PrivyRelayNameRegistrationResult {
-    val session = resolveSession(context)
-    val payload =
-      JSONObject()
-        .put("chainId", PirateChainConfig.BASE_SEPOLIA_CHAIN_ID)
-        .put("walletAddress", session.wallet.address)
-        .put("privyWalletId", session.wallet.id)
-        .put(
-          "intent",
-          JSONObject()
-            .put("type", "pirate.name.register")
-            .put("nameLabel", quote.label)
-            .put("nameTld", quote.tld),
-        )
-        .put(
-          "transaction",
-          JSONObject()
-            .put("to", PirateChainConfig.BASE_SEPOLIA_REGISTRY_V2)
-            .put("data", quote.callData)
-            .put("value", quote.priceWei.toString()),
-        )
-    val txHash = submitRelay(session = session, payload = payload)
-    return PrivyRelayNameRegistrationResult(
-      txHash = txHash,
-      fullName = quote.fullName,
-      label = quote.label,
-      node = quote.node,
-      tld = quote.tld,
-    )
-  }
+  ): PrivyRelayNameRegistrationResult =
+    withContext(Dispatchers.IO) {
+      val session = resolveSession(context)
+      val payload =
+        JSONObject()
+          .put("chainId", PirateChainConfig.BASE_SEPOLIA_CHAIN_ID)
+          .put("walletAddress", session.wallet.address)
+          .put("privyWalletId", session.wallet.id)
+          .put(
+            "intent",
+            JSONObject()
+              .put("type", "pirate.name.register")
+              .put("nameLabel", quote.label)
+              .put("nameTld", quote.tld),
+          )
+          .put(
+            "transaction",
+            JSONObject()
+              .put("to", PirateChainConfig.BASE_SEPOLIA_REGISTRY_V2)
+              .put("data", quote.callData)
+              .apply {
+                if (quote.priceWei.signum() > 0) {
+                  put("value", quote.priceWei.toString())
+                }
+              },
+          )
+      val txHash = submitRelay(session = session, payload = payload)
+      PrivyRelayNameRegistrationResult(
+        txHash = txHash,
+        fullName = quote.fullName,
+        label = quote.label,
+        node = quote.node,
+        tld = quote.tld,
+      )
+    }
 
   suspend fun upsertProfile(
     context: Context,
     input: PrivyRelayProfileInput,
-  ): String {
-    val session = resolveSession(context)
-    val draft =
-      ContractProfileData(
-        displayName = input.displayName.trim(),
-        age = input.age,
-        gender = mapGender(input.gender),
-        locationCityId = input.location?.trim().orEmpty(),
-        languages =
-          input.languages.map { entry ->
-            sc.pirate.app.profile.ProfileLanguageEntry(
-              code = entry.code.trim().lowercase(),
-              proficiency = entry.proficiency,
-            )
-          },
-        photoUri = input.avatarUrl?.trim().orEmpty(),
-      )
-    val profileInput = ProfileContractApi.buildProfileInput(draft)
-    val payload =
-      JSONObject()
-        .put("chainId", PirateChainConfig.BASE_SEPOLIA_CHAIN_ID)
-        .put("walletAddress", session.wallet.address)
-        .put("privyWalletId", session.wallet.id)
-        .put(
-          "intent",
-          JSONObject()
-            .put("type", "pirate.profile.upsert")
-            .put(
-              "input",
-              JSONObject()
-                .put("displayName", input.displayName.trim())
-                .put("age", input.age)
-                .put("gender", input.gender.trim().lowercase())
-                .put("location", input.location?.trim().orEmpty())
-                .put(
-                  "languages",
-                  org.json.JSONArray().apply {
-                    input.languages.forEach { entry ->
-                      put(
-                        JSONObject()
-                          .put("code", entry.code.trim().lowercase())
-                          .put("proficiency", entry.proficiency),
-                      )
-                    }
-                  },
-                )
-                .put("avatarUrl", input.avatarUrl?.trim().orEmpty()),
-            ),
+  ): String =
+    withContext(Dispatchers.IO) {
+      val session = resolveSession(context)
+      val draft =
+        ContractProfileData(
+          displayName = input.displayName.trim(),
+          age = input.age,
+          gender = mapGender(input.gender),
+          locationCityId = input.location?.trim().orEmpty(),
+          languages =
+            input.languages.map { entry ->
+              sc.pirate.app.profile.ProfileLanguageEntry(
+                code = entry.code.trim().lowercase(),
+                proficiency = entry.proficiency,
+              )
+            },
+          photoUri = input.avatarUrl?.trim().orEmpty(),
         )
-        .put(
-          "transaction",
-          JSONObject()
-            .put("to", PirateChainConfig.BASE_SEPOLIA_PROFILE_V2)
-            .put("data", TempoProfileContractApi.encodeUpsertProfileCall(profileInput)),
-        )
-    return submitRelay(session = session, payload = payload)
-  }
+      val profileInput = ProfileContractApi.buildProfileInput(draft)
+      val payload =
+        JSONObject()
+          .put("chainId", PirateChainConfig.BASE_SEPOLIA_CHAIN_ID)
+          .put("walletAddress", session.wallet.address)
+          .put("privyWalletId", session.wallet.id)
+          .put(
+            "intent",
+            JSONObject()
+              .put("type", "pirate.profile.upsert")
+              .put(
+                "input",
+                JSONObject()
+                  .put("displayName", input.displayName.trim())
+                  .put("age", input.age)
+                  .put("gender", input.gender.trim().lowercase())
+                  .put("location", input.location?.trim().orEmpty())
+                  .put(
+                    "languages",
+                    org.json.JSONArray().apply {
+                      input.languages.forEach { entry ->
+                        put(
+                          JSONObject()
+                            .put("code", entry.code.trim().lowercase())
+                            .put("proficiency", entry.proficiency),
+                        )
+                      }
+                    },
+                  )
+                  .put("avatarUrl", input.avatarUrl?.trim().orEmpty()),
+              ),
+          )
+          .put(
+            "transaction",
+            JSONObject()
+              .put("to", PirateChainConfig.BASE_SEPOLIA_PROFILE_V2)
+              .put("data", TempoProfileContractApi.encodeUpsertProfileCall(profileInput)),
+          )
+      submitRelay(session = session, payload = payload)
+    }
 
   suspend fun submitOnboardingRecords(
     context: Context,
@@ -141,56 +184,57 @@ internal object PrivyRelayClient {
     nameTld: String,
     location: String?,
     avatarRef: String?,
-  ): String? {
-    val trimmedLocation = location?.trim().orEmpty()
-    val trimmedAvatar = avatarRef?.trim().orEmpty()
-    if (trimmedLocation.isBlank() && trimmedAvatar.isBlank()) return null
+  ): String? =
+    withContext(Dispatchers.IO) {
+      val trimmedLocation = location?.trim().orEmpty()
+      val trimmedAvatar = avatarRef?.trim().orEmpty()
+      if (trimmedLocation.isBlank() && trimmedAvatar.isBlank()) return@withContext null
 
-    val normalizedLabel = nameLabel.trim().lowercase()
-    val normalizedTld = nameTld.trim().lowercase()
-    val keys = mutableListOf<String>()
-    val values = mutableListOf<String>()
-    if (trimmedLocation.isNotBlank()) {
-      keys += "heaven.location"
-      values += trimmedLocation
-    }
-    if (trimmedAvatar.isNotBlank()) {
-      keys += "avatar"
-      values += trimmedAvatar
-    }
-    val fullName = "$normalizedLabel.$normalizedTld"
-    val node = TempoNameRecordsApi.computeNode(fullName)
+      val normalizedLabel = nameLabel.trim().lowercase()
+      val normalizedTld = nameTld.trim().lowercase()
+      val keys = mutableListOf<String>()
+      val values = mutableListOf<String>()
+      if (trimmedLocation.isNotBlank()) {
+        keys += "heaven.location"
+        values += trimmedLocation
+      }
+      if (trimmedAvatar.isNotBlank()) {
+        keys += "avatar"
+        values += trimmedAvatar
+      }
+      val fullName = "$normalizedLabel.$normalizedTld"
+      val node = TempoNameRecordsApi.computeNode(fullName)
 
-    val session = resolveSession(context)
-    val payload =
-      JSONObject()
-        .put("chainId", PirateChainConfig.BASE_SEPOLIA_CHAIN_ID)
-        .put("walletAddress", session.wallet.address)
-        .put("privyWalletId", session.wallet.id)
-        .put(
-          "intent",
-          JSONObject()
-            .put("type", "pirate.onboarding.records")
-            .put("nameLabel", normalizedLabel)
-            .put("nameTld", normalizedTld)
-            .put("avatarRef", trimmedAvatar.ifBlank { JSONObject.NULL })
-            .put(
-              "input",
-              JSONObject().apply {
-                if (trimmedLocation.isNotBlank()) {
-                  put("location", trimmedLocation)
-                }
-              },
-            ),
-        )
-        .put(
-          "transaction",
-          JSONObject()
-            .put("to", PirateChainConfig.BASE_SEPOLIA_RECORDS_V1)
-            .put("data", TempoNameRecordsApi.encodeSetRecordsCallForRelay(node, keys, values)),
-        )
-    return submitRelay(session = session, payload = payload)
-  }
+      val session = resolveSession(context)
+      val payload =
+        JSONObject()
+          .put("chainId", PirateChainConfig.BASE_SEPOLIA_CHAIN_ID)
+          .put("walletAddress", session.wallet.address)
+          .put("privyWalletId", session.wallet.id)
+          .put(
+            "intent",
+            JSONObject()
+              .put("type", "pirate.onboarding.records")
+              .put("nameLabel", normalizedLabel)
+              .put("nameTld", normalizedTld)
+              .put("avatarRef", trimmedAvatar.ifBlank { JSONObject.NULL })
+              .put(
+                "input",
+                JSONObject().apply {
+                  if (trimmedLocation.isNotBlank()) {
+                    put("location", trimmedLocation)
+                  }
+                },
+              ),
+          )
+          .put(
+            "transaction",
+            JSONObject()
+              .put("to", PirateChainConfig.BASE_SEPOLIA_RECORDS_V1)
+              .put("data", TempoNameRecordsApi.encodeSetRecordsCallForRelay(node, keys, values)),
+          )
+      submitRelay(session = session, payload = payload)
+    }
 
   private suspend fun resolveSession(context: Context): PrivyRelaySession {
     val config = PrivyRuntimeConfig.fromBuildConfig()
@@ -205,13 +249,19 @@ internal object PrivyRelayClient {
     val accessToken = user.getAccessToken().getOrThrow().trim().ifBlank { null }
     val identityToken = user.identityToken?.trim()?.ifBlank { null }
 
+    Log.d(
+      TAG,
+      "resolveSession: walletId=${wallet.id} walletAddress=${wallet.address} embeddedWalletCount=${user.embeddedEthereumWallets.size} accessToken=${summarizeToken(accessToken)} identityToken=${summarizeToken(identityToken)}",
+    )
+
     if (accessToken == null && identityToken == null) {
       error("Privy session expired. Sign in again.")
     }
 
     return PrivyRelaySession(
       accessToken = accessToken,
-      identityToken = identityToken,
+      identityToken = if (accessToken == null) identityToken else null,
+      user = user,
       wallet = wallet,
     )
   }
@@ -229,15 +279,25 @@ internal object PrivyRelayClient {
     }
   }
 
-  private fun submitRelay(
+  private suspend fun submitRelay(
     session: PrivyRelaySession,
     payload: JSONObject,
   ): String {
+    val debugId = UUID.randomUUID().toString().substring(0, 8)
+    val authorizationSignature = buildRelayAuthorizationSignature(session, payload)
+    if (authorizationSignature != null) {
+      payload.put("authorizationSignature", authorizationSignature)
+    }
+    Log.d(
+      TAG,
+      "submitRelay[$debugId]: url=${relayUrl()} ${summarizePayload(payload)} auth(access=${summarizeToken(session.accessToken)}, identity=${summarizeToken(session.identityToken)}, ownerSig=${if (authorizationSignature != null) "present" else "absent"})",
+    )
     val request =
       Request.Builder()
-        .url(RELAY_URL)
+        .url(relayUrl())
         .post(payload.toString().toRequestBody(jsonType))
         .header("Content-Type", "application/json")
+        .header("x-pirate-debug-id", debugId)
         .apply {
           session.accessToken?.let { header("Authorization", "Bearer $it") }
           session.identityToken?.let { header("x-privy-identity-token", it) }
@@ -247,6 +307,11 @@ internal object PrivyRelayClient {
     HttpClients.Api.newCall(request).execute().use { response ->
       val body = response.body?.string().orEmpty()
       val json = runCatching { JSONObject(body) }.getOrNull() ?: JSONObject()
+      val responseDebugId = response.header("x-pirate-debug-id").orEmpty()
+      Log.d(
+        TAG,
+        "submitRelay[$debugId]: responseDebugId=$responseDebugId status=${response.code} body=${body.take(800)}",
+      )
       if (!response.isSuccessful) {
         throw IllegalStateException(
           json.optString("message", "Privy relay request failed: HTTP ${response.code}"),
@@ -261,10 +326,67 @@ internal object PrivyRelayClient {
       throw IllegalStateException("Privy relay returned an invalid response.")
     }
   }
+
+  private suspend fun buildRelayAuthorizationSignature(
+    session: PrivyRelaySession,
+    payload: JSONObject,
+  ): String? {
+    val walletId = session.wallet.id?.trim().orEmpty()
+    if (walletId.isBlank()) {
+      Log.w(TAG, "buildRelayAuthorizationSignature: missing wallet id for ${session.wallet.address}")
+      return null
+    }
+
+    val signatureBody = buildPrivySendTransactionBody(payload)
+    val signaturePayload =
+      WalletApiPayload(
+        1,
+        "$PRIVY_AUTHORIZATION_API_BASE_URL/v1/wallets/$walletId/rpc",
+        "POST",
+        mapOf("privy-app-id" to BuildConfig.PRIVY_APP_ID),
+        signatureBody,
+      )
+    val signature = session.user.generateAuthorizationSignature(signaturePayload).getOrThrow()
+    Log.d(
+      TAG,
+      "buildRelayAuthorizationSignature: walletId=$walletId url=${signaturePayload.url} body=${canonicalJson.encodeToString(JsonObject.serializer(), signatureBody)}",
+    )
+    return signature
+  }
+
+  private fun buildPrivySendTransactionBody(
+    payload: JSONObject,
+  ): JsonObject {
+    val transaction = payload.optJSONObject("transaction") ?: error("Relay payload transaction is missing.")
+    val chainId = payload.optLong("chainId")
+    return buildJsonObject {
+      put("method", JsonPrimitive("eth_sendTransaction"))
+      put("chain_type", JsonPrimitive("ethereum"))
+      put("caip2", JsonPrimitive("eip155:$chainId"))
+      put("sponsor", JsonPrimitive(true))
+      put(
+        "params",
+        buildJsonObject {
+          put(
+            "transaction",
+            buildJsonObject {
+              put("to", JsonPrimitive(transaction.optString("to")))
+              put("data", JsonPrimitive(transaction.optString("data")))
+              transaction.optString("value").trim().takeIf { it.isNotEmpty() }?.let { value ->
+                put("value", JsonPrimitive(value))
+              }
+            },
+          )
+        },
+      )
+    }
+  }
+
 }
 
 private data class PrivyRelaySession(
   val accessToken: String?,
   val identityToken: String?,
+  val user: PrivyUser,
   val wallet: EmbeddedEthereumWallet,
 )

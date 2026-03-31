@@ -50,7 +50,7 @@ data class PirateAuthUiState(
         .putString("walletSource", state.walletSource?.name)
         .putString("privyUserId", state.privyUserId)
         .putString("privyWalletId", state.privyWalletId)
-        .putString("passkeyRpId", state.passkeyRpId)
+        .putString("passkeyRpId", PiratePasskeyRpId.normalize(state.passkeyRpId))
         .putBoolean("selfVerified", state.selfVerified)
         .apply()
     }
@@ -85,7 +85,10 @@ data class PirateAuthUiState(
         walletSource = walletSource,
         privyUserId = prefs.getString("privyUserId", null)?.takeIf { provider == AuthProvider.PRIVY },
         privyWalletId = prefs.getString("privyWalletId", null)?.takeIf { provider == AuthProvider.PRIVY },
-        passkeyRpId = prefs.getString("passkeyRpId", null) ?: PiratePasskeyDefaults.DEFAULT_RP_ID,
+        passkeyRpId =
+          PiratePasskeyRpId.normalize(
+            prefs.getString("passkeyRpId", null) ?: PiratePasskeyDefaults.DEFAULT_RP_ID,
+          ),
         selfVerified = prefs.getBoolean("selfVerified", false),
       )
     }

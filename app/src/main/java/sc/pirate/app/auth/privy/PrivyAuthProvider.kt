@@ -11,6 +11,7 @@ import sc.pirate.app.auth.PirateAuthProvider
 import sc.pirate.app.auth.PirateAuthRequest
 import sc.pirate.app.auth.PirateAuthUiState
 import sc.pirate.app.auth.PiratePasskeyDefaults
+import sc.pirate.app.auth.PiratePasskeyRpId
 import sc.pirate.app.auth.PirateWalletSession
 
 internal class PrivyAuthProvider(
@@ -18,7 +19,11 @@ internal class PrivyAuthProvider(
   private val config: PrivyRuntimeConfig = PrivyRuntimeConfig.fromBuildConfig(),
 ) : PirateAuthProvider {
   override val availableMethods: List<PirateAuthMethod> =
-    PirateAuthMethod.entries.toList()
+    listOf(
+      PirateAuthMethod.GOOGLE,
+      PirateAuthMethod.EMAIL,
+      PirateAuthMethod.TWITTER,
+    )
 
   override fun currentSession(state: PirateAuthUiState): PirateWalletSession? {
     if (state.provider != PirateAuthUiState.AuthProvider.PRIVY) return null
@@ -109,7 +114,7 @@ internal class PrivyAuthProvider(
   }
 
   private suspend fun authenticateWithPasskey(currentState: PirateAuthUiState): PrivyUser {
-    val rpId = currentState.passkeyRpId.trim().ifBlank { PiratePasskeyDefaults.DEFAULT_RP_ID }
+    val rpId = PiratePasskeyRpId.normalize(currentState.passkeyRpId)
     val signupResult =
       privy()
         .passkey

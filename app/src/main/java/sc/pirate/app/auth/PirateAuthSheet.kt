@@ -96,11 +96,7 @@ private fun PirateAuthMethodPicker(
   enabledMethods: List<PirateAuthMethod>,
   onMethodSelected: (PirateAuthMethod) -> Unit,
 ) {
-  val enabledMethodSet = enabledMethods.toSet()
-  val orderedMethods =
-    PirateAuthMethod.entries.sortedWith(
-      compareBy<PirateAuthMethod>({ if (it in enabledMethodSet) 0 else 1 }, { it.ordinal }),
-    )
+  val orderedMethods = enabledMethods.distinct().sortedBy(PirateAuthMethod::ordinal)
 
   Column(
     modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 28.dp),
@@ -115,7 +111,7 @@ private fun PirateAuthMethodPicker(
     orderedMethods.forEach { method ->
       PirateAuthMethodRow(
         method = method,
-        enabled = method in enabledMethodSet,
+        enabled = true,
         busy = busy,
         onClick = { onMethodSelected(method) },
       )

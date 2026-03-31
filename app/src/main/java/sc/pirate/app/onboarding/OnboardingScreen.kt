@@ -59,20 +59,32 @@ suspend fun checkOnboardingStatus(
   val prefs = context.getSharedPreferences("heaven_onboarding", Context.MODE_PRIVATE)
   val key = "onboarding:${userAddress.lowercase()}"
 
-  if (prefs.getString(key, null) == ONBOARDING_COMPLETE_V2) return@withContext null
+  if (prefs.getString(key, null) == ONBOARDING_COMPLETE_V2) {
+    Log.d(TAG, "checkOnboardingStatus: complete for address=$userAddress")
+    return@withContext null
+  }
 
   try {
     val publicProfile = runCatching { fetchPublicProfileReadModel(userAddress, forceRefresh = true) }.getOrNull()
     val resolvedName =
       publicProfile?.records?.primaryName?.trim()?.takeIf { it.isNotBlank() }
         ?: runCatching { HeavenNamesApi.reverse(userAddress) }.getOrNull()?.takeIf { it.label.isNotBlank() }?.fullName
+    Log.d(
+      TAG,
+      "checkOnboardingStatus: address=$userAddress resolvedName=$resolvedName exists=${publicProfile?.exists}",
+    )
     if (resolvedName == null) {
+      Log.d(TAG, "checkOnboardingStatus: routing to NAME for address=$userAddress")
       return@withContext OnboardingStep.NAME
     }
 
-    if (publicProfile?.exists != true) return@withContext OnboardingStep.AGE
+    if (publicProfile?.exists != true) {
+      Log.d(TAG, "checkOnboardingStatus: routing to AGE for address=$userAddress")
+      return@withContext OnboardingStep.AGE
+    }
 
     prefs.edit().putString(key, ONBOARDING_COMPLETE_V2).apply()
+    Log.d(TAG, "checkOnboardingStatus: marking complete for address=$userAddress")
     null
   } catch (e: Exception) {
     Log.w(TAG, "checkOnboardingStatus failed: ${e.message}")
@@ -95,7 +107,7 @@ fun OnboardingScreen(
 ) {
   val context = androidx.compose.ui.platform.LocalContext.current
 
-  var step by remember { mutableStateOf(initialStep) }
+  var step by remember(initialStep, userEthAddress) { mutableStateOf(initialStep) }
   var submitting by remember { mutableStateOf(false) }
   var error by remember { mutableStateOf<String?>(null) }
 
@@ -106,6 +118,10 @@ fun OnboardingScreen(
   var gender by remember { mutableStateOf("") }
   var selectedLocation by remember { mutableStateOf<sc.pirate.app.onboarding.steps.LocationResult?>(null) }
   var location by remember { mutableStateOf("") }
+
+  LaunchedEffect(initialStep, userEthAddress) {
+    Log.d(TAG, "OnboardingScreen opened: address=$userEthAddress initialStep=$initialStep")
+  }
 
   LaunchedEffect(step, userEthAddress, claimedName) {
     if (step == OnboardingStep.NAME) return@LaunchedEffect

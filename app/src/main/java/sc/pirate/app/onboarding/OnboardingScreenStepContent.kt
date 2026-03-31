@@ -1,6 +1,7 @@
 package sc.pirate.app.onboarding
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -23,6 +24,8 @@ import sc.pirate.app.onboarding.steps.NameAvailabilityResult
 import sc.pirate.app.onboarding.steps.NameStep
 import sc.pirate.app.profile.BaseNameRegistryApi
 import sc.pirate.app.profile.HeavenNamesApi
+
+private const val ONBOARDING_STEP_CONTENT_TAG = "OnboardingStepContent"
 
 private data class OnboardingNameClaimResult(
   val success: Boolean,
@@ -280,6 +283,10 @@ private suspend fun registerOnboardingName(
   registrationFailedError: String,
 ): OnboardingNameClaimResult {
   val normalizedTld = tld.trim().lowercase()
+  Log.d(
+    ONBOARDING_STEP_CONTENT_TAG,
+    "registerOnboardingName: address=$ownerAddress label=$label tld=$normalizedTld",
+  )
   if (ownerAddress.isBlank()) {
     return OnboardingNameClaimResult(
       success = false,
@@ -294,6 +301,13 @@ private suspend fun registerOnboardingName(
           val quote = BaseNameRegistryApi.quotePirateRegistration(label)
           PrivyRelayClient.registerPirateName(context = context, quote = quote)
         }
+      result.exceptionOrNull()?.let { error ->
+        Log.w(
+          ONBOARDING_STEP_CONTENT_TAG,
+          "registerOnboardingName(.pirate) failed: ${error.message}",
+          error,
+        )
+      }
       val registered = result.getOrNull()
       if (registered == null) {
         OnboardingNameClaimResult(
@@ -316,6 +330,12 @@ private suspend fun registerOnboardingName(
           ownerAddress = ownerAddress,
           label = label,
         )
+      if (!result.success) {
+        Log.w(
+          ONBOARDING_STEP_CONTENT_TAG,
+          "registerOnboardingName(.heaven) failed: ${result.error}",
+        )
+      }
       if (!result.success) {
         OnboardingNameClaimResult(
           success = false,

@@ -96,7 +96,6 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
     remember {
       ScrobbleService(
         appContext = appContext,
-        activity = activity,
         player = player,
         getAuthState = { authState },
         onShowMessage = { msg ->
@@ -262,6 +261,7 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
       }
     }
     val step = onboardingOverride ?: runCatching { checkOnboardingStatus(appContext, userAddress) }.getOrNull()
+    Log.d(TAG, "resolvePostAuthDestination: address=$userAddress step=$step alreadyResolving=$alreadyResolving")
     if (step != null) {
       onboardingInitialStep = step
       navController.navigate(PirateRoute.Onboarding.route) {

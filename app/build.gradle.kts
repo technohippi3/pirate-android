@@ -132,6 +132,11 @@ android {
         ?: "https://api.pirate.sc"
     buildConfigField("String", "API_CORE_URL", "\"$apiCoreUrl\"")
 
+    val privyRelayUrl =
+      projectStringProperty("PRIVY_RELAY_URL")
+        ?: "https://pirate.sc/api/privy-relay"
+    buildConfigField("String", "PRIVY_RELAY_URL", "\"$privyRelayUrl\"")
+
     val voiceAgentUrl =
       projectStringProperty("VOICE_AGENT_URL")
         ?: "https://chat.pirate.sc"

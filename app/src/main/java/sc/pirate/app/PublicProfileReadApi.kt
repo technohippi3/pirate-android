@@ -172,23 +172,23 @@ private fun parsePublicProfileReadModel(payload: JSONObject?): PublicProfileRead
   val walletAddress = normalizePublicProfileAddress(payload.optString("walletAddress", "")) ?: return null
   val contract = parseContractProfile(payload.optJSONObject("contract"))
   val recordsPayload = payload.optJSONObject("records")
-  val topLevelAvatarRef = payload.optString("avatarUrl", "").trim().ifBlank { null }
+  val topLevelAvatarRef = payload.optString("avatarUrl", "").trim().ifNullish()
 
   val records =
     PublicProfileRecordData(
-      primaryName = recordsPayload?.optString("primaryName", "").orEmpty().trim().ifBlank { null },
-      avatarRef = recordsPayload?.optString("avatar", "").orEmpty().trim().ifBlank { null } ?: topLevelAvatarRef ?: contract?.photoUri?.trim().ifNullOrBlank(),
-      coverRef = recordsPayload?.optString("cover", "").orEmpty().trim().ifBlank { null },
-      location = recordsPayload?.optString("location", "").orEmpty().trim().ifBlank { null } ?: payload.optString("location", "").trim().ifBlank { null },
-      school = recordsPayload?.optString("school", "").orEmpty().trim().ifBlank { null },
+      primaryName = recordsPayload?.optString("primaryName", "").orEmpty().trim().ifNullish(),
+      avatarRef = recordsPayload?.optString("avatar", "").orEmpty().trim().ifNullish() ?: topLevelAvatarRef ?: contract?.photoUri?.trim().ifNullOrBlank(),
+      coverRef = recordsPayload?.optString("cover", "").orEmpty().trim().ifNullish(),
+      location = recordsPayload?.optString("location", "").orEmpty().trim().ifNullish() ?: payload.optString("location", "").trim().ifNullish(),
+      school = recordsPayload?.optString("school", "").orEmpty().trim().ifNullish(),
     )
 
   val exists = payload.optBoolean("exists", false)
   return PublicProfileReadModel(
     exists = exists,
     walletAddress = walletAddress,
-    handle = payload.optString("handle", "").trim().ifBlank { null } ?: records.primaryName,
-    displayName = payload.optString("displayName", "").trim().ifBlank { null } ?: contract?.displayName?.trim().ifNullOrBlank(),
+    handle = payload.optString("handle", "").trim().ifNullish() ?: records.primaryName,
+    displayName = payload.optString("displayName", "").trim().ifNullish() ?: contract?.displayName?.trim().ifNullOrBlank(),
     avatarRef = records.avatarRef ?: contract?.photoUri?.trim().ifNullOrBlank(),
     contractProfile = if (exists) contract else null,
     records = records,
@@ -280,5 +280,13 @@ private fun encodeUrlComponent(value: String): String =
 private fun String?.ifNullOrBlank(): String? {
   val trimmed = this?.trim().orEmpty()
   if (trimmed.isBlank()) return null
+  return trimmed
+}
+
+private fun String?.ifNullish(): String? {
+  val trimmed = this?.trim().orEmpty()
+  if (trimmed.isBlank()) return null
+  if (trimmed.equals("null", ignoreCase = true)) return null
+  if (trimmed.equals("undefined", ignoreCase = true)) return null
   return trimmed
 }
