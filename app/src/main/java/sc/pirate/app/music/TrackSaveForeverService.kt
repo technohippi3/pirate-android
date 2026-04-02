@@ -4,9 +4,8 @@ import android.content.Context
 import android.net.Uri
 import sc.pirate.app.BuildConfig
 import sc.pirate.app.arweave.ArweaveUploadApi
-import sc.pirate.app.tempo.ContentKeyManager
-import sc.pirate.app.tempo.EciesContentCrypto
-import sc.pirate.app.tempo.SessionKeyManager
+import sc.pirate.app.crypto.ContentKeyManager
+import sc.pirate.app.crypto.EciesContentCrypto
 import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
@@ -42,10 +41,6 @@ object TrackSaveForeverService {
     val trackId = TrackIds.computeMetaTrackId(track.title, track.artist, track.album).lowercase()
     val computedContentId = ContentIds.computeContentId(trackId, owner).lowercase()
     val contentId = normalizeContentId(track.contentId) ?: computedContentId
-
-    SessionKeyManager.load(context)?.takeIf {
-      SessionKeyManager.isValid(it, ownerAddress = owner)
-    } ?: throw IllegalStateException("Missing valid Tempo session key. Please sign in again.")
 
     val encryptedBlob = readAndEncryptLocalAudio(context, track, contentId) ?: run {
       val pieceCid = track.pieceCid?.trim().orEmpty()

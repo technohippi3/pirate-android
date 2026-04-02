@@ -1,4 +1,4 @@
-package sc.pirate.app.tempo
+package sc.pirate.app.crypto
 
 import android.util.Base64
 import com.upokecenter.cbor.CBORObject
@@ -30,7 +30,7 @@ object P256Utils {
         val yHex get() = bytesToHex(y)
     }
 
-    /** Derive Tempo account address from P256 public key: keccak256(x || y)[12:] */
+    /** Derive an EVM address from P256 public key bytes: keccak256(x || y)[12:] */
     fun deriveAddress(pubKey: P256PublicKey): String {
         val input = pubKey.x + pubKey.y
         val hash = Keccak.Digest256().digest(input)

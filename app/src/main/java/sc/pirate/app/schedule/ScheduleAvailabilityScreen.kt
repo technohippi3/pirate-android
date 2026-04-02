@@ -24,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import sc.pirate.app.tempo.TempoPasskeyManager
 import sc.pirate.app.theme.PiratePalette
 import sc.pirate.app.ui.PirateMobileHeader
 import sc.pirate.app.util.shortAddress
@@ -37,7 +36,6 @@ import kotlinx.coroutines.withContext
 fun ScheduleAvailabilityScreen(
   isAuthenticated: Boolean,
   userAddress: String?,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
   onClose: () -> Unit,
   onShowMessage: (String) -> Unit,
 ) {
@@ -67,10 +65,10 @@ fun ScheduleAvailabilityScreen(
     availabilityLoading = true
     try {
       val slots = withContext(Dispatchers.IO) {
-        TempoSessionEscrowApi.fetchHostAvailabilitySlots(hostAddress = userAddress, maxResults = 300)
+        SessionEscrowApi.fetchHostAvailabilitySlots(hostAddress = userAddress, maxResults = 300)
       }
       val chainBasePrice = withContext(Dispatchers.IO) {
-        TempoSessionEscrowApi.fetchHostBasePriceUsd(userAddress)
+        SessionEscrowApi.fetchHostBasePriceUsd(userAddress)
       }
       availabilitySlots = slots.mapIndexed { index, slot ->
         SlotRow(
@@ -169,8 +167,8 @@ fun ScheduleAvailabilityScreen(
             onPriceChange = { basePriceEdit = it },
             onCancelEdit = { editingPrice = false; basePriceEdit = basePrice ?: DEFAULT_BASE_PRICE },
             onSavePrice = {
-              if (!isAuthenticated || userAddress.isNullOrBlank() || tempoAccount == null) {
-                onShowMessage("Sign in with Tempo to set a base price.")
+              if (!isAuthenticated || userAddress.isNullOrBlank()) {
+                onShowMessage("Sign in to set a base price.")
                 return@AvailabilityHeaderCard
               }
               val normalizedPrice = normalizePriceInput(basePriceEdit) ?: run {
@@ -180,27 +178,16 @@ fun ScheduleAvailabilityScreen(
 
               availabilityBusy = true
               scope.launch {
-                val sessionKey = ensureScheduleSessionKey(
+                val result = SessionEscrowApi.setHostBasePrice(
                   context = context,
-                  account = tempoAccount,
-                  onShowMessage = onShowMessage,
-                )
-                if (sessionKey == null) {
-                  availabilityBusy = false
-                  return@launch
-                }
-
-                val result = TempoSessionEscrowApi.setHostBasePrice(
-                  userAddress = tempoAccount.address,
-                  sessionKey = sessionKey,
+                  userAddress = userAddress,
                   priceUsd = normalizedPrice,
                 )
                 if (result.success) {
                   basePrice = normalizedPrice
                   basePriceEdit = normalizedPrice
                   editingPrice = false
-                  val fundingPath = if (result.usedSelfPayFallback) "self-pay fallback" else "sponsored"
-                  onShowMessage("Base price updated ($fundingPath): ${shortAddress(result.txHash ?: "", minLengthToShorten = 10)}")
+                  onShowMessage("Base price updated: ${shortAddress(result.txHash ?: "", minLengthToShorten = 10)}")
                   refreshAvailability()
                 } else {
                   onShowMessage("Base price update failed: ${result.error ?: "unknown error"}")
@@ -246,8 +233,8 @@ fun ScheduleAvailabilityScreen(
             enabled = !disabled,
             onRowClick = {
               if (disabled) return@AvailabilitySwitchRow
-              if (userAddress.isNullOrBlank() || tempoAccount == null) {
-                onShowMessage("Sign in with Tempo to edit availability.")
+              if (userAddress.isNullOrBlank()) {
+                onShowMessage("Sign in to edit availability.")
                 return@AvailabilitySwitchRow
               }
 
@@ -313,8 +300,8 @@ fun ScheduleAvailabilityScreen(
       busy = availabilityBusy,
       onApply = {
         val currentEditor = slotEditor ?: return@SlotEditorSheet
-        if (!isAuthenticated || userAddress.isNullOrBlank() || tempoAccount == null) {
-          onShowMessage("Sign in with Tempo to edit availability.")
+        if (!isAuthenticated || userAddress.isNullOrBlank()) {
+          onShowMessage("Sign in to edit availability.")
           return@SlotEditorSheet
         }
 
@@ -344,36 +331,25 @@ fun ScheduleAvailabilityScreen(
 
         availabilityBusy = true
         scope.launch {
-          val sessionKey = ensureScheduleSessionKey(
-            context = context,
-            account = tempoAccount,
-            onShowMessage = onShowMessage,
-          )
-          if (sessionKey == null) {
-            availabilityBusy = false
-            return@launch
-          }
-
           val result =
             if (editorForApply.targetAvailable) {
               executeCreatePlan(
-                account = tempoAccount,
-                sessionKey = sessionKey,
+                context = context,
+                userAddress = userAddress,
                 editor = editorForApply,
                 preview = preview,
               )
             } else {
               executeCancelPlan(
-                account = tempoAccount,
-                sessionKey = sessionKey,
+                context = context,
+                userAddress = userAddress,
                 preview = preview,
               )
             }
 
           if (result.success) {
-            val fundingPath = if (result.usedSelfPayFallback) "self-pay fallback" else "sponsored"
             onShowMessage(
-              "Availability updated ($fundingPath): ${shortAddress(result.txHash ?: "", minLengthToShorten = 10)}",
+              "Availability updated: ${shortAddress(result.txHash ?: "", minLengthToShorten = 10)}",
             )
             slotEditor = null
             refreshAvailability()

@@ -10,7 +10,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import sc.pirate.app.assistant.AgoraVoiceController
 import sc.pirate.app.assistant.AssistantService
-import sc.pirate.app.profile.TempoNameRecordsApi
+import sc.pirate.app.profile.PirateNameRecordsApi
 import kotlinx.coroutines.launch
 import org.xmtp.android.library.libxmtp.PermissionOption
 
@@ -228,8 +228,8 @@ fun ChatScreen(
         val resolvedAddress =
           directAddress ?: run {
             val display = conversation.displayName.trim()
-            if (!looksLikeTempoName(display)) null
-            else TempoNameRecordsApi.resolveAddressForName(display)?.let(::normalizeEthAddressOrNull)
+            if (!looksLikePirateName(display)) null
+            else PirateNameRecordsApi.resolveAddressForName(display)?.let(::normalizeEthAddressOrNull)
           }
         if (!resolvedAddress.isNullOrBlank()) {
           onOpenProfile(resolvedAddress)

@@ -1,7 +1,6 @@
 package sc.pirate.app.music.ui
 
 import android.content.Context
-import androidx.fragment.app.FragmentActivity
 import sc.pirate.app.music.LocalPlaylist
 import sc.pirate.app.music.LocalPlaylistTrack
 import sc.pirate.app.music.LocalPlaylistsStore
@@ -10,18 +9,17 @@ import sc.pirate.app.music.ONCHAIN_PLAYLISTS_ENABLED
 import sc.pirate.app.music.OnChainPlaylist
 import sc.pirate.app.music.OnChainPlaylistsApi
 import sc.pirate.app.music.PlaylistDisplayItem
-import sc.pirate.app.music.TempoPlaylistApi
+import org.json.JSONObject
+import sc.pirate.app.PirateChainConfig
+import sc.pirate.app.auth.privy.PrivyRelayClient
+import sc.pirate.app.music.PiratePlaylistApi
 import sc.pirate.app.music.CoverRef
 import sc.pirate.app.music.TrackIds
 import sc.pirate.app.music.resolveCanonicalTrackIdForMutation
 import sc.pirate.app.scrobble.awaitScrobbleReceipt
 import sc.pirate.app.scrobble.encodeRegisterTracksForUser
 import sc.pirate.app.scrobble.isTrackRegistered
-import sc.pirate.app.scrobble.submitScrobbleSessionKeyContractCall
-import sc.pirate.app.tempo.P256Utils
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
-import sc.pirate.app.tempo.TempoSessionKeyApi
+import sc.pirate.app.crypto.P256Utils
 import kotlinx.coroutines.delay
 
 private const val GAS_LIMIT_REGISTER_TRACK_FOR_PLAYLIST_MIN = 900_000L
@@ -55,34 +53,21 @@ internal suspend fun createPlaylistWithTrack(
   playlistName: String,
   isAuthenticated: Boolean,
   ownerEthAddress: String?,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
-  hostActivity: FragmentActivity?,
   onShowMessage: (String) -> Unit,
 ): PlaylistMutationSuccess? {
   val owner = ownerEthAddress?.trim()?.lowercase().orEmpty()
-  if (ONCHAIN_PLAYLISTS_ENABLED && isAuthenticated && owner.isNotBlank() && tempoAccount != null) {
-    val sessionKey =
-      resolvePlaylistSessionKey(
-        context = context,
-        owner = owner,
-        hostActivity = hostActivity,
-        tempoAccount = tempoAccount,
-        failureMessage = "Session expired. Sign in again to create playlists.",
-        onShowMessage = onShowMessage,
-      ) ?: return null
-
+  if (ONCHAIN_PLAYLISTS_ENABLED && isAuthenticated && owner.isNotBlank()) {
     val trackId =
       resolveCanonicalTrackIdForPlaylistMutation(
+        context = context,
         track = track,
-        account = tempoAccount,
-        sessionKey = sessionKey,
+        ownerAddress = owner,
         onShowMessage = onShowMessage,
       ) ?: return null
 
     val createResult =
-      TempoPlaylistApi.createPlaylist(
-        account = tempoAccount,
-        sessionKey = sessionKey,
+      PiratePlaylistApi.createPlaylist(
+        context = context,
         name = playlistName,
         coverCid = "",
         visibility = 0,
@@ -117,8 +102,6 @@ internal suspend fun addTrackToPlaylistWithUi(
   track: MusicTrack,
   isAuthenticated: Boolean,
   ownerEthAddress: String?,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
-  hostActivity: FragmentActivity?,
   onShowMessage: (String) -> Unit,
 ): PlaylistMutationSuccess? {
   if (playlist.isLocal) {
@@ -137,26 +120,16 @@ internal suspend fun addTrackToPlaylistWithUi(
   }
 
   val owner = ownerEthAddress?.trim()?.lowercase().orEmpty()
-  if (!isAuthenticated || owner.isBlank() || tempoAccount == null) {
+  if (!isAuthenticated || owner.isBlank()) {
     onShowMessage("Sign in to update playlists")
     return null
   }
 
-  val sessionKey =
-    resolvePlaylistSessionKey(
-      context = context,
-      owner = owner,
-      hostActivity = hostActivity,
-      tempoAccount = tempoAccount,
-      failureMessage = "Session expired. Sign in again to update playlists.",
-      onShowMessage = onShowMessage,
-      ) ?: return null
-
   val trackId =
     resolveCanonicalTrackIdForPlaylistMutation(
+      context = context,
       track = track,
-      account = tempoAccount,
-      sessionKey = sessionKey,
+      ownerAddress = owner,
       onShowMessage = onShowMessage,
     ) ?: return null
 
@@ -190,8 +163,7 @@ internal suspend fun addTrackToPlaylistWithUi(
   }
   val result =
     setTracksWithStaleRetry(
-      account = tempoAccount,
-      sessionKey = sessionKey,
+      context = context,
       ownerAddress = owner,
       playlistId = playlist.id,
       initialVersion = initialVersion,
@@ -219,41 +191,6 @@ internal suspend fun addTrackToPlaylistWithUi(
   )
 }
 
-private suspend fun resolvePlaylistSessionKey(
-  context: Context,
-  owner: String,
-  hostActivity: FragmentActivity?,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
-  failureMessage: String,
-  onShowMessage: (String) -> Unit,
-): SessionKeyManager.SessionKey? {
-  val loaded =
-    SessionKeyManager.load(context)?.takeIf {
-      SessionKeyManager.isValid(it, ownerAddress = owner) &&
-        it.keyAuthorization?.isNotEmpty() == true
-    }
-  if (loaded != null) return loaded
-
-  val activity = hostActivity
-  val account = tempoAccount
-  if (activity == null || account == null) {
-    onShowMessage(failureMessage)
-    return null
-  }
-  onShowMessage("Authorizing session key...")
-  val auth = TempoSessionKeyApi.authorizeSessionKey(activity = activity, account = account)
-  val authorized =
-    auth.sessionKey?.takeIf {
-      auth.success &&
-        SessionKeyManager.isValid(it, ownerAddress = owner) &&
-        it.keyAuthorization?.isNotEmpty() == true
-    }
-  if (authorized != null) return authorized
-
-  onShowMessage(auth.error ?: failureMessage)
-  return null
-}
-
 private class MetaTrackRegistration(
   val trackId: String,
   val kind: Int,
@@ -277,9 +214,9 @@ private data class PlaylistSnapshot(
 )
 
 private suspend fun resolveCanonicalTrackIdForPlaylistMutation(
+  context: Context,
   track: MusicTrack,
-  account: TempoPasskeyManager.PasskeyAccount,
-  sessionKey: SessionKeyManager.SessionKey,
+  ownerAddress: String,
   onShowMessage: (String) -> Unit,
 ): String? {
   val direct = resolveCanonicalTrackIdForMutation(track)?.value
@@ -296,7 +233,7 @@ private suspend fun resolveCanonicalTrackIdForPlaylistMutation(
 
   val registerCallData =
     encodeRegisterTracksForUser(
-      user = account.address,
+      user = ownerAddress,
       kind = registration.kind,
       payloadBytes32 = registration.payloadBytes32,
       title = registration.title,
@@ -305,13 +242,20 @@ private suspend fun resolveCanonicalTrackIdForPlaylistMutation(
       durationSec = registration.durationSec,
     )
 
-  val submission =
+  val txHash =
     runCatching {
-      submitScrobbleSessionKeyContractCall(
-        account = account,
-        sessionKey = sessionKey,
-        callData = registerCallData,
-        minimumGasLimit = GAS_LIMIT_REGISTER_TRACK_FOR_PLAYLIST_MIN,
+      PrivyRelayClient.submitContractCall(
+        context = context,
+        chainId = PirateChainConfig.STORY_AENEID_CHAIN_ID,
+        to = PirateChainConfig.STORY_SCROBBLE_V4,
+        data = registerCallData,
+        intentType = "pirate.playlist.track-register",
+        intentArgs =
+          JSONObject()
+            .put("trackId", registration.trackId)
+            .put("ownerAddress", ownerAddress)
+            .put("title", registration.title)
+            .put("artist", registration.artist),
       )
     }.getOrElse {
       onShowMessage("Track registration failed: ${it.message ?: "unknown error"}")
@@ -319,7 +263,7 @@ private suspend fun resolveCanonicalTrackIdForPlaylistMutation(
     }
 
   val receipt =
-    runCatching { awaitScrobbleReceipt(submission.txHash) }
+    runCatching { awaitScrobbleReceipt(txHash) }
       .getOrElse {
         onShowMessage("Track registration confirmation failed: ${it.message ?: "unknown error"}")
         return null
@@ -354,8 +298,7 @@ private fun prepareMetaTrackRegistration(track: MusicTrack): MetaTrackRegistrati
 private fun normalizeMetaField(value: String): String = value.lowercase().trim().replace(Regex("\\s+"), " ")
 
 private suspend fun setTracksWithStaleRetry(
-  account: TempoPasskeyManager.PasskeyAccount,
-  sessionKey: SessionKeyManager.SessionKey,
+  context: Context,
   ownerAddress: String,
   playlistId: String,
   initialVersion: Int,
@@ -398,9 +341,8 @@ private suspend fun setTracksWithStaleRetry(
     nextTrackIds.add(trackIdToAppend)
 
     val result =
-      TempoPlaylistApi.setTracks(
-        account = account,
-        sessionKey = sessionKey,
+      PiratePlaylistApi.setTracks(
+        context = context,
         playlistId = playlistId,
         expectedVersion = expectedVersion,
         trackIds = nextTrackIds,

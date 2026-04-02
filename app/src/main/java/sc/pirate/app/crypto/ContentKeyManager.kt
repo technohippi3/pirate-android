@@ -1,4 +1,4 @@
-package sc.pirate.app.tempo
+package sc.pirate.app.crypto
 
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
@@ -11,10 +11,10 @@ import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
 /**
- * Manages a persistent P256 keypair for ECIES content encryption/decryption.
+ * Manages a persistent device-local P256 keypair for content encryption/decryption.
  *
- * WebAuthn passkeys don't expose the private key, so we generate a separate
- * P256 keypair at first-upload time and store it in SharedPreferences.
+ * Wallet auth does not expose a reusable local content-decryption key, so we
+ * generate a separate P256 keypair at first-upload time and store it locally.
  * The public key should be published on-chain (RecordsV1 "contentPubKey") so
  * others can ECIES-encrypt AES keys to it when sharing content.
  *

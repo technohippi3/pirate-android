@@ -4,7 +4,6 @@ import android.content.Context
 import android.net.Uri
 import android.media.MediaMetadataRetriever
 import android.provider.OpenableColumns
-import androidx.fragment.app.FragmentActivity
 import androidx.media3.common.MediaItem
 import androidx.media3.transformer.Composition
 import androidx.media3.transformer.EditedMediaItem
@@ -12,15 +11,14 @@ import androidx.media3.transformer.EditedMediaItemSequence
 import androidx.media3.transformer.ExportException
 import androidx.media3.transformer.ExportResult
 import androidx.media3.transformer.Transformer
-import sc.pirate.app.tempo.P256Utils
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoClient
-import sc.pirate.app.tempo.TempoPasskeyManager
-import sc.pirate.app.tempo.TempoSessionKeyApi
-import sc.pirate.app.tempo.TempoTransaction
+import sc.pirate.app.PirateChainConfig
+import sc.pirate.app.auth.privy.PrivyRelayClient
+import sc.pirate.app.crypto.P256Utils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.bouncycastle.jcajce.provider.digest.Keccak
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -42,6 +40,7 @@ import org.web3j.abi.datatypes.generated.Uint8
 import java.math.BigInteger
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
+import org.json.JSONArray
 
 internal data class SongPublishApiResponse(
   val status: Int,
@@ -69,7 +68,7 @@ internal data class PublishedTrackReadiness(
 internal data class SongPublishPreparedStoryIntent(
   val operationId: String,
   val intent: Any,
-  val typedDataDigest: String,
+  val typedData: JSONObject,
 )
 
 internal data class SongPublishMetaParts(
@@ -89,44 +88,16 @@ internal data class SongPreviewWindow(
 private const val LANE_PRESET_NON_COMMERCIAL = "lane_v1_non_commercial"
 private const val LANE_PRESET_COMMERCIAL_USE = "lane_v1_commercial_use"
 private const val LANE_PRESET_COMMERCIAL_REMIX = "lane_v1_commercial_remix"
+internal data class SongPublishEip1559Fees(
+  val maxPriorityFeePerGas: BigInteger,
+  val maxFeePerGas: BigInteger,
+)
+
+private const val SONG_PUBLISH_MIN_PRIORITY_FEE_PER_GAS = 1_000_000_000L
 private val SONG_PUBLISH_REGISTER_AUTH_PATH_RE = Regex("^/api/music/publish/[^/]+/register(?:/confirm)?$")
-
-internal suspend fun songPublishEnsureAuthorizedSessionKey(
-  context: Context,
-  activity: FragmentActivity,
-  account: TempoPasskeyManager.PasskeyAccount,
-): SessionKeyManager.SessionKey {
-  val owner = account.address.trim().lowercase()
-  val loaded = SessionKeyManager.load(context)
-  val loadedValid =
-    loaded != null &&
-      SessionKeyManager.isValid(loaded, ownerAddress = owner) &&
-      loaded.keyAuthorization?.isNotEmpty() == true
-  if (loadedValid) return loaded!!
-
-  val storedOwner = loaded?.ownerAddress?.trim()?.lowercase().orEmpty()
-  if (storedOwner.isNotBlank() && storedOwner != owner) {
-    SessionKeyManager.clear(context)
-  }
-
-  val auth = TempoSessionKeyApi.authorizeSessionKey(activity = activity, account = account)
-  val authorized =
-    auth.sessionKey?.takeIf {
-      auth.success &&
-        SessionKeyManager.isValid(it, ownerAddress = owner) &&
-        it.keyAuthorization?.isNotEmpty() == true
-    }
-  return authorized ?: throw IllegalStateException(auth.error ?: "Session key authorization failed")
-}
 
 private fun songPublishShouldAttachMusicAuth(path: String): Boolean =
   SONG_PUBLISH_REGISTER_AUTH_PATH_RE.matches(path.trim())
-
-private fun songPublishHashPersonalMessage(message: String): ByteArray {
-  val prefix = "\u0019Ethereum Signed Message:\n${message.length}"
-  val prefixedMessage = prefix.toByteArray(Charsets.UTF_8) + message.toByteArray(Charsets.UTF_8)
-  return Keccak.Digest256().digest(prefixedMessage)
-}
 
 private fun songPublishBuildMusicAuthMessage(
   userAddress: String,
@@ -143,29 +114,6 @@ private fun songPublishBuildMusicAuthMessage(
     "body_sha256=$bodySha256",
     "timestamp=$timestamp",
   ).joinToString("\n")
-
-internal fun songPublishKeyAuthorizationHex(sessionKey: SessionKeyManager.SessionKey): String {
-  val keyAuthorization = sessionKey.keyAuthorization
-    ?: throw IllegalStateException("Tempo session key authorization is missing")
-  if (keyAuthorization.isEmpty()) {
-    throw IllegalStateException("Tempo session key authorization is missing")
-  }
-  return "0x${P256Utils.bytesToHex(keyAuthorization)}"
-}
-
-internal fun songPublishSignDigestWithSessionKey(
-  sessionKey: SessionKeyManager.SessionKey,
-  userAddress: String,
-  digestHex: String,
-): String {
-  val digest = P256Utils.hexToBytes(digestHex)
-  val signature = SessionKeyManager.signWithSessionKey(
-    sessionKey = sessionKey,
-    userAddress = userAddress.trim().lowercase(),
-    txHash = digest,
-  )
-  return "0x${signature.joinToString("") { "%02x".format(it) }}"
-}
 
 internal fun songPublishSha256Hex(data: ByteArray): String {
   val digest = MessageDigest.getInstance("SHA-256").digest(data)
@@ -534,47 +482,48 @@ internal fun songPublishErrorMessageFromApi(
   return "$operation failed: $base"
 }
 
-internal fun songPublishPostJsonToMusicApi(
+internal suspend fun songPublishPostJsonToMusicApi(
+  context: Context? = null,
   path: String,
   userAddress: String,
   body: JSONObject,
-  sessionKey: SessionKeyManager.SessionKey? = null,
-): SongPublishApiResponse {
-  val url = URL("${SongPublishService.API_CORE_URL}$path")
-  val bodyText = body.toString()
-  val conn = (url.openConnection() as HttpURLConnection).apply {
-    requestMethod = "POST"
-    doOutput = true
-    connectTimeout = 120_000
-    readTimeout = 120_000
-    setRequestProperty("Content-Type", "application/json")
-    setRequestProperty("X-User-Address", userAddress)
-    if (sessionKey != null && songPublishShouldAttachMusicAuth(path)) {
-      val timestamp = System.currentTimeMillis() / 1_000L
-      val bodySha256 = songPublishSha256Hex(bodyText.toByteArray(Charsets.UTF_8))
-      val message = songPublishBuildMusicAuthMessage(
-        userAddress = userAddress,
-        method = requestMethod,
-        path = path,
-        bodySha256 = bodySha256,
-        timestamp = timestamp,
-      )
-      val digest = songPublishHashPersonalMessage(message)
-      val signature = SessionKeyManager.signWithSessionKey(
-        sessionKey = sessionKey,
-        userAddress = userAddress,
-        txHash = digest,
-      )
-      setRequestProperty("X-Music-Auth-Timestamp", timestamp.toString())
-      setRequestProperty("X-Music-Auth-Signature", "0x${signature.joinToString("") { "%02x".format(it) }}")
-      setRequestProperty("X-Music-Auth-Key-Authorization", songPublishKeyAuthorizationHex(sessionKey))
+): SongPublishApiResponse =
+  withContext(Dispatchers.IO) {
+    val url = URL("${SongPublishService.API_CORE_URL}$path")
+    val bodyText = body.toString()
+    val requestMethod = "POST"
+    val conn = (url.openConnection() as HttpURLConnection).apply {
+      this.requestMethod = requestMethod
+      doOutput = true
+      connectTimeout = 120_000
+      readTimeout = 120_000
+      setRequestProperty("Content-Type", "application/json")
+      setRequestProperty("X-User-Address", userAddress)
+      if (songPublishShouldAttachMusicAuth(path)) {
+        val signingContext = context ?: throw IllegalStateException("Privy context is required for publish auth")
+        val timestamp = System.currentTimeMillis() / 1_000L
+        val bodySha256 = songPublishSha256Hex(bodyText.toByteArray(Charsets.UTF_8))
+        val message = songPublishBuildMusicAuthMessage(
+          userAddress = userAddress,
+          method = requestMethod,
+          path = path,
+          bodySha256 = bodySha256,
+          timestamp = timestamp,
+        )
+        val signature = PrivyRelayClient.signPersonalMessage(
+          context = signingContext,
+          expectedWalletAddress = userAddress,
+          message = message,
+        )
+        setRequestProperty("X-Music-Auth-Timestamp", timestamp.toString())
+        setRequestProperty("X-Music-Auth-Signature", signature)
+      }
     }
+    conn.outputStream.use { out ->
+      out.write(bodyText.toByteArray(Charsets.UTF_8))
+    }
+    songPublishReadApiResponse(conn)
   }
-  conn.outputStream.use { out ->
-    out.write(bodyText.toByteArray(Charsets.UTF_8))
-  }
-  return songPublishReadApiResponse(conn)
-}
 
 internal fun songPublishGetFromMusicApi(path: String): SongPublishApiResponse {
   val url = URL("${SongPublishService.API_CORE_URL}$path")
@@ -628,28 +577,86 @@ internal fun songPublishParsePreparedStoryIntent(response: SongPublishApiRespons
   }
   val intent = registration.opt("intent")
     ?: throw IllegalStateException("Story intent prepare response is missing intent")
-  val typedDataDigest = registration
-    .optJSONObject("typedData")
-    ?.optString("digest", "")
-    ?.trim()
-    .orEmpty()
-  if (!Regex("^0x[a-fA-F0-9]{64}$").matches(typedDataDigest)) {
-    throw IllegalStateException("Story intent prepare response is missing typedData.digest")
-  }
+  val typedData = registration.optJSONObject("typedData")
+    ?: throw IllegalStateException("Story intent prepare response is missing typedData")
   return SongPublishPreparedStoryIntent(
     operationId = operationId,
     intent = intent,
-    typedDataDigest = typedDataDigest.lowercase(),
+    typedData = typedData,
   )
 }
 
-internal fun songPublishFinalizeMusicPublish(
+private fun songPublishHexQuantity(value: BigInteger): String {
+  val normalized = if (value.signum() < 0) BigInteger.ZERO else value
+  return "0x${normalized.toString(16)}"
+}
+
+private fun songPublishParseHexQuantity(raw: String, label: String): BigInteger {
+  val normalized = raw.trim().removePrefix("0x").ifBlank { "0" }
+  return normalized.toBigIntegerOrNull(16)
+    ?: throw IllegalStateException("Invalid $label response from Story RPC")
+}
+
+private fun songPublishStoryRpc(method: String, params: JSONArray): JSONObject {
+  val payload =
+    JSONObject()
+      .put("jsonrpc", "2.0")
+      .put("id", 1)
+      .put("method", method)
+      .put("params", params)
+  val request =
+    okhttp3.Request.Builder()
+      .url(PirateChainConfig.STORY_AENEID_RPC_URL)
+      .post(payload.toString().toRequestBody("application/json".toMediaType()))
+      .build()
+  return sc.pirate.app.util.HttpClients.Api.newCall(request).execute().use { response ->
+    if (!response.isSuccessful) {
+      throw IllegalStateException("Story RPC failed: ${response.code}")
+    }
+    val json = JSONObject(response.body?.string().orEmpty())
+    val error = json.optJSONObject("error")
+    if (error != null) {
+      throw IllegalStateException(error.optString("message", error.toString()))
+    }
+    json
+  }
+}
+
+private fun songPublishGetPendingTransactionCount(address: String): BigInteger {
+  val json = songPublishStoryRpc(
+    method = "eth_getTransactionCount",
+    params = JSONArray().put(address).put("pending"),
+  )
+  return songPublishParseHexQuantity(json.optString("result", "0x0"), "transaction count")
+}
+
+private fun songPublishGetSuggestedFees(): SongPublishEip1559Fees {
+  val fallbackPriority = BigInteger.valueOf(SONG_PUBLISH_MIN_PRIORITY_FEE_PER_GAS)
+  val priority =
+    runCatching {
+      val json = songPublishStoryRpc("eth_maxPriorityFeePerGas", JSONArray())
+      songPublishParseHexQuantity(json.optString("result", "0x0"), "priority fee")
+    }.getOrNull()?.max(fallbackPriority) ?: fallbackPriority
+  val gasPrice =
+    runCatching {
+      val json = songPublishStoryRpc("eth_gasPrice", JSONArray())
+      songPublishParseHexQuantity(json.optString("result", "0x0"), "gas price")
+    }.getOrNull() ?: priority.add(BigInteger.ONE)
+  val maxFee = gasPrice.add(priority).max(priority.add(BigInteger.ONE))
+  return SongPublishEip1559Fees(
+    maxPriorityFeePerGas = priority,
+    maxFeePerGas = maxFee,
+  )
+}
+
+internal suspend fun songPublishFinalizeMusicPublish(
+  context: Context,
   jobId: String,
   userAddress: String,
   title: String,
   artist: String,
   durationSec: Int,
-  tempoSignedTx: String,
+  signedTx: String,
   album: String = "",
   purchasePrice: String? = null,
   maxSupply: Int? = null,
@@ -659,7 +666,7 @@ internal fun songPublishFinalizeMusicPublish(
     put("artist", artist.trim())
     put("album", album.trim())
     put("durationS", durationSec)
-    put("tempoSignedTx", tempoSignedTx.trim())
+    put("signedTx", signedTx.trim())
     if (!purchasePrice.isNullOrBlank()) {
       put("purchasePrice", purchasePrice.trim())
     }
@@ -668,13 +675,15 @@ internal fun songPublishFinalizeMusicPublish(
     }
   }
   return songPublishPostJsonToMusicApi(
+    context = context,
     path = "/api/music/publish/$jobId/finalize",
     userAddress = userAddress,
     body = body,
   )
 }
 
-internal fun songPublishAttachPresentationForMusicPublish(
+internal suspend fun songPublishAttachPresentationForMusicPublish(
+  context: Context,
   jobId: String,
   userAddress: String,
   delegateSignedTx: String,
@@ -683,16 +692,15 @@ internal fun songPublishAttachPresentationForMusicPublish(
     put("delegateSignedTx", delegateSignedTx.trim())
   }
   return songPublishPostJsonToMusicApi(
+    context = context,
     path = "/api/music/publish/$jobId/presentation/attach",
     userAddress = userAddress,
     body = body,
   )
 }
 
-internal suspend fun songPublishBuildSignedTempoPublishTx(
+internal suspend fun songPublishBuildSignedPublishTx(
   context: Context,
-  activity: FragmentActivity,
-  account: TempoPasskeyManager.PasskeyAccount,
   coordinatorAddress: String,
   ownerAddress: String,
   title: String,
@@ -706,10 +714,9 @@ internal suspend fun songPublishBuildSignedTempoPublishTx(
   visibility: Int,
   replaceIfActive: Boolean,
 ): String {
-  val owner = normalizeAddress(ownerAddress)
-  val coordinator = normalizeAddress(coordinatorAddress)
-  val dataset = normalizeAddress(datasetOwner)
-  require(account.address.equals(owner, ignoreCase = true)) { "Passkey account must match publish owner" }
+  val owner = normalizeChainAddress(ownerAddress)
+  val coordinator = normalizeChainAddress(coordinatorAddress)
+  val dataset = normalizeChainAddress(datasetOwner)
   require(durationSec > 0) { "durationSec must be positive" }
   require(algo in 1..255) { "algo must be between 1 and 255" }
   require(visibility in 0..2) { "visibility must be 0, 1, or 2" }
@@ -728,10 +735,9 @@ internal suspend fun songPublishBuildSignedTempoPublishTx(
     visibility = visibility,
     replaceIfActive = replaceIfActive,
   )
-  return songPublishBuildSignedTempoContractCallTx(
+  return songPublishBuildSignedContractCallTx(
     context = context,
-    activity = activity,
-    account = account,
+    chainId = PirateChainConfig.STORY_AENEID_CHAIN_ID,
     ownerAddress = owner,
     targetAddress = coordinator,
     callData = callData,
@@ -739,10 +745,8 @@ internal suspend fun songPublishBuildSignedTempoPublishTx(
   )
 }
 
-internal suspend fun songPublishBuildSignedTempoSetPublishDelegateTx(
+internal suspend fun songPublishBuildSignedSetPublishDelegateTx(
   context: Context,
-  activity: FragmentActivity,
-  account: TempoPasskeyManager.PasskeyAccount,
   registryAddress: String,
   ownerAddress: String,
   publishId: String,
@@ -750,9 +754,8 @@ internal suspend fun songPublishBuildSignedTempoSetPublishDelegateTx(
   permissions: Int,
   expiresAtSec: Long,
 ): String {
-  val owner = normalizeAddress(ownerAddress)
-  val registry = normalizeAddress(registryAddress)
-  require(account.address.equals(owner, ignoreCase = true)) { "Passkey account must match publish owner" }
+  val owner = normalizeChainAddress(ownerAddress)
+  val registry = normalizeChainAddress(registryAddress)
   require(permissions in 1..3) { "permissions must be between 1 and 3" }
   require(expiresAtSec > 0L) { "expiresAtSec must be > 0" }
 
@@ -762,10 +765,9 @@ internal suspend fun songPublishBuildSignedTempoSetPublishDelegateTx(
     permissions = permissions,
     expiresAtSec = expiresAtSec,
   )
-  return songPublishBuildSignedTempoContractCallTx(
+  return songPublishBuildSignedContractCallTx(
     context = context,
-    activity = activity,
-    account = account,
+    chainId = PirateChainConfig.STORY_AENEID_CHAIN_ID,
     ownerAddress = owner,
     targetAddress = registry,
     callData = callData,
@@ -773,67 +775,36 @@ internal suspend fun songPublishBuildSignedTempoSetPublishDelegateTx(
   )
 }
 
-private suspend fun songPublishBuildSignedTempoContractCallTx(
+private suspend fun songPublishBuildSignedContractCallTx(
   context: Context,
-  activity: FragmentActivity,
-  account: TempoPasskeyManager.PasskeyAccount,
+  chainId: Long,
   ownerAddress: String,
   targetAddress: String,
   callData: String,
   minimumGasLimit: Long,
 ): String {
-  val owner = normalizeAddress(ownerAddress)
-  val target = normalizeAddress(targetAddress)
-  require(account.address.equals(owner, ignoreCase = true)) { "Passkey account must match tx signer" }
-  val nonce = withContext(Dispatchers.IO) { TempoClient.getNonce(owner) }
-  val fees = withContext(Dispatchers.IO) { withAddressBidFloor(owner, TempoClient.getSuggestedFees()) }
-  val gasLimit =
-    withContext(Dispatchers.IO) {
-      val estimated = estimateGas(from = owner, to = target, data = callData)
-      withBuffer(estimated = estimated, minimum = minimumGasLimit)
-    }
-  val tx =
-    TempoTransaction.UnsignedTx(
-      nonce = nonce,
-      maxPriorityFeePerGas = fees.maxPriorityFeePerGas,
-      maxFeePerGas = fees.maxFeePerGas,
-      feeMode = TempoTransaction.FeeMode.RELAY_SPONSORED,
-      gasLimit = gasLimit,
-      calls =
-        listOf(
-          TempoTransaction.Call(
-            to = P256Utils.hexToBytes(target),
-            value = 0,
-            input = P256Utils.hexToBytes(callData),
-          ),
-        ),
-    )
-  val sigHash = TempoTransaction.signatureHash(tx)
-  val sessionKey =
-    SessionKeyManager.load(context)?.takeIf {
-      SessionKeyManager.isValid(it, ownerAddress = owner) && it.keyAuthorization?.isNotEmpty() == true
-    }
-  val signedTx =
-    if (sessionKey != null) {
-      val keychainSig =
-        SessionKeyManager.signWithSessionKey(
-          sessionKey = sessionKey,
-          userAddress = owner,
-          txHash = sigHash,
-        )
-      TempoTransaction.encodeSignedSessionKey(tx, keychainSig)
-    } else {
-      val assertion =
-        TempoPasskeyManager.sign(
-          activity = activity,
-          challenge = sigHash,
-          account = account,
-          rpId = account.rpId,
-        )
-      TempoTransaction.encodeSignedWebAuthn(tx, assertion)
-    }
-  rememberAddressBidFloor(owner, fees)
-  return signedTx
+  val owner = normalizeChainAddress(ownerAddress)
+  val target = normalizeChainAddress(targetAddress)
+  val nonce = songPublishGetPendingTransactionCount(owner)
+  val fees = songPublishGetSuggestedFees()
+  val gasLimit = withBuffer(estimated = estimateGas(from = owner, to = target, data = callData), minimum = minimumGasLimit)
+  val transaction = JSONObject().apply {
+    put("from", owner)
+    put("to", target)
+    put("data", callData)
+    put("value", "0x0")
+    put("chainId", songPublishHexQuantity(BigInteger.valueOf(chainId)))
+    put("nonce", songPublishHexQuantity(nonce))
+    put("gas", songPublishHexQuantity(BigInteger.valueOf(gasLimit)))
+    put("maxFeePerGas", songPublishHexQuantity(fees.maxFeePerGas))
+    put("maxPriorityFeePerGas", songPublishHexQuantity(fees.maxPriorityFeePerGas))
+    put("type", "0x2")
+  }
+  return PrivyRelayClient.signTransaction(
+    context = context,
+    expectedWalletAddress = owner,
+    transaction = transaction,
+  )
 }
 
 internal fun songPublishEncodeCoordinatorPublishCallData(
@@ -886,7 +857,7 @@ internal fun songPublishEncodeSetPublishDelegateCallData(
   expiresAtSec: Long,
 ): String {
   val normalizedPublishId = normalizeBytes32(publishId, "publishId")
-  val normalizedDelegate = normalizeAddress(delegateAddress)
+  val normalizedDelegate = normalizeChainAddress(delegateAddress)
   val function =
     Function(
       "setPublishDelegate",
@@ -976,7 +947,8 @@ private fun songPublishAbiEncodeUint8Bytes32(kind: Int, payload32: ByteArray): B
   return out
 }
 
-internal fun songPublishUploadMetadataMusicPublish(
+internal suspend fun songPublishUploadMetadataMusicPublish(
+  context: Context,
   jobId: String,
   userAddress: String,
   ipMetadataJson: JSONObject,
@@ -987,13 +959,15 @@ internal fun songPublishUploadMetadataMusicPublish(
     put("nftMetadataJson", nftMetadataJson)
   }
   return songPublishPostJsonToMusicApi(
+    context = context,
     path = "/api/music/publish/$jobId/metadata",
     userAddress = userAddress,
     body = body,
   )
 }
 
-internal fun songPublishRegisterMusicPublish(
+internal suspend fun songPublishRegisterMusicPublish(
+  context: Context,
   jobId: String,
   userAddress: String,
   recipient: String,
@@ -1005,11 +979,9 @@ internal fun songPublishRegisterMusicPublish(
   commercialRevShare: Int,
   donationPolicy: JSONObject? = null,
   defaultMintingFee: String,
-  sessionKey: SessionKeyManager.SessionKey,
   storyIntentOperationId: String? = null,
   storyIntentUserSig: String? = null,
   storyIntent: Any? = null,
-  storyIntentKeyAuthorization: String? = null,
 ): SongPublishApiResponse {
   val lanePresetId =
     when (license.trim()) {
@@ -1034,42 +1006,35 @@ internal fun songPublishRegisterMusicPublish(
       put("storyIntentOperationId", storyIntentOperationId?.trim())
       put("storyIntentUserSig", storyIntentUserSig?.trim())
       put("storyIntent", storyIntent)
-      if (!storyIntentKeyAuthorization.isNullOrBlank()) {
-        put("storyIntentKeyAuthorization", storyIntentKeyAuthorization.trim())
-      }
     }
   }
   return songPublishPostJsonToMusicApi(
+    context = context,
     path = "/api/music/publish/$jobId/register",
     userAddress = userAddress,
     body = body,
-    sessionKey = sessionKey,
   )
 }
 
-internal fun songPublishConfirmRegisterMusicPublish(
+internal suspend fun songPublishConfirmRegisterMusicPublish(
+  context: Context,
   jobId: String,
   userAddress: String,
-  sessionKey: SessionKeyManager.SessionKey,
   storyIntentOperationId: String? = null,
   storyIntentUserSig: String? = null,
   storyIntent: Any? = null,
-  storyIntentKeyAuthorization: String? = null,
 ): SongPublishApiResponse {
   val body = JSONObject()
   if (!storyIntentOperationId.isNullOrBlank() || !storyIntentUserSig.isNullOrBlank() || storyIntent != null) {
     body.put("storyIntentOperationId", storyIntentOperationId?.trim())
     body.put("storyIntentUserSig", storyIntentUserSig?.trim())
     body.put("storyIntent", storyIntent)
-    if (!storyIntentKeyAuthorization.isNullOrBlank()) {
-      body.put("storyIntentKeyAuthorization", storyIntentKeyAuthorization.trim())
-    }
   }
   return songPublishPostJsonToMusicApi(
+    context = context,
     path = "/api/music/publish/$jobId/register/confirm",
     userAddress = userAddress,
     body = body,
-    sessionKey = sessionKey,
   )
 }
 

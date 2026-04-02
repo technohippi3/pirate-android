@@ -2,9 +2,8 @@ package sc.pirate.app.profile
 
 import androidx.fragment.app.FragmentActivity
 import org.json.JSONObject
-import sc.pirate.app.auth.LegacySignerAccountStore
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
+import sc.pirate.app.PirateChainConfig
+import sc.pirate.app.auth.privy.PrivyRelayClient
 
 data class IdentityNameRegistrationResult(
   val success: Boolean,
@@ -55,12 +54,7 @@ interface PirateIdentityWriteBridge {
   ): IdentityWriteResult
 }
 
-/**
- * Temporary identity write bridge while Android still depends on the legacy passkey/session-key
- * submission path. This is the seam that should be swapped to Privy relay or native wallet
- * signing once the Android auth migration is complete.
- */
-object LegacyIdentityWriteBridge : PirateIdentityWriteBridge {
+object PrivyIdentityWriteBridge : PirateIdentityWriteBridge {
   override suspend fun registerName(
     activity: FragmentActivity,
     ownerAddress: String,
@@ -70,23 +64,35 @@ object LegacyIdentityWriteBridge : PirateIdentityWriteBridge {
     bootstrapSessionKey: Boolean,
     preferSelfPay: Boolean,
   ): IdentityNameRegistrationResult {
-    val account =
-      loadLegacyAccount(activity = activity, ownerAddress = ownerAddress)
-        ?: return IdentityNameRegistrationResult(
-          success = false,
-          error = "Signing account unavailable for this wallet.",
+    return runCatching {
+      require(ownerAddress.trim().isNotBlank()) { "Wallet address is required." }
+      require(label.trim().isNotBlank()) { "Name label is empty." }
+      require(durationSeconds > 0L) { "Invalid registration duration." }
+      require(tld.trim().equals("pirate", ignoreCase = true)) {
+        "Unsupported TLD: ${tld.trim().lowercase()}"
+      }
+
+      val quote =
+        BaseNameRegistryApi.quotePirateRegistration(
+          label = label,
+          durationSeconds = durationSeconds,
         )
-    return TempoNameRegistryApi.register(
-      activity = activity,
-      account = account,
-      label = label,
-      tld = tld,
-      durationSeconds = durationSeconds,
-      rpId = account.rpId,
-      sessionKey = loadLegacySessionKey(activity = activity, ownerAddress = account.address),
-      bootstrapSessionKey = bootstrapSessionKey,
-      preferSelfPay = preferSelfPay,
-    ).toIdentityNameRegistrationResult()
+      val result = PrivyRelayClient.registerPirateName(context = activity.applicationContext, quote = quote)
+      IdentityNameRegistrationResult(
+        success = true,
+        txHash = result.txHash,
+        label = result.label,
+        tld = result.tld,
+        fullName = result.fullName,
+        node = result.node,
+        tokenId = result.node,
+      )
+    }.getOrElse { error ->
+      IdentityNameRegistrationResult(
+        success = false,
+        error = sanitizeBridgeError(error.message ?: "Name registration failed."),
+      )
+    }
   }
 
   override suspend fun upsertProfile(
@@ -94,19 +100,15 @@ object LegacyIdentityWriteBridge : PirateIdentityWriteBridge {
     ownerAddress: String,
     profileInput: JSONObject,
   ): IdentityWriteResult {
-    val account =
-      loadLegacyAccount(activity = activity, ownerAddress = ownerAddress)
-        ?: return IdentityWriteResult(
-          success = false,
-          error = "Signing account unavailable for this wallet.",
-        )
-    return TempoProfileContractApi.upsertProfile(
+    return runContractCall(
       activity = activity,
-      account = account,
-      profileInput = profileInput,
-      rpId = account.rpId,
-      sessionKey = loadLegacySessionKey(activity = activity, ownerAddress = account.address),
-    ).toIdentityWriteResult()
+      ownerAddress = ownerAddress,
+      to = PirateChainConfig.BASE_SEPOLIA_PROFILE_V2,
+      data = BaseProfileContractCodec.encodeUpsertProfileCall(profileInput),
+      intentType = "pirate.profile.upsert",
+      intentArgs = JSONObject().put("ownerAddress", ownerAddress.trim()),
+      fallbackError = "Profile update failed.",
+    )
   }
 
   override suspend fun setTextRecords(
@@ -116,21 +118,19 @@ object LegacyIdentityWriteBridge : PirateIdentityWriteBridge {
     keys: List<String>,
     values: List<String>,
   ): IdentityWriteResult {
-    val account =
-      loadLegacyAccount(activity = activity, ownerAddress = ownerAddress)
-        ?: return IdentityWriteResult(
-          success = false,
-          error = "Signing account unavailable for this wallet.",
-        )
-    return TempoNameRecordsApi.setTextRecords(
+    return runContractCall(
       activity = activity,
-      account = account,
-      node = node,
-      keys = keys,
-      values = values,
-      rpId = account.rpId,
-      sessionKey = loadLegacySessionKey(activity = activity, ownerAddress = account.address),
-    ).toIdentityWriteResult()
+      ownerAddress = ownerAddress,
+      to = PirateChainConfig.BASE_SEPOLIA_RECORDS_V1,
+      data = PirateNameRecordsApi.encodeSetRecordsCallForRelay(node = node, keys = keys, values = values),
+      intentType = "pirate.name.records",
+      intentArgs =
+        JSONObject()
+          .put("ownerAddress", ownerAddress.trim())
+          .put("node", node.trim())
+          .put("recordCount", keys.size),
+      fallbackError = "Identity records update failed.",
+    )
   }
 
   override suspend fun upsertXmtpInboxId(
@@ -138,81 +138,55 @@ object LegacyIdentityWriteBridge : PirateIdentityWriteBridge {
     ownerAddress: String,
     inboxId: String,
   ): IdentityWriteResult {
-    val account =
-      loadLegacyAccount(activity = activity, ownerAddress = ownerAddress)
-        ?: return IdentityWriteResult(
-          success = false,
-          error = "Signing account unavailable for this wallet.",
-        )
-    return TempoNameRecordsApi.upsertXmtpInboxId(
+    val normalizedInboxId = inboxId.trim()
+    if (normalizedInboxId.isBlank()) {
+      return IdentityWriteResult(success = false, error = "Missing XMTP inbox ID.")
+    }
+    val primary =
+      PirateNameRecordsApi.getPrimaryNameDetails(ownerAddress)
+        ?: return IdentityWriteResult(success = false, error = "Primary name required to publish XMTP inbox ID.")
+    return setTextRecords(
       activity = activity,
-      account = account,
-      inboxId = inboxId,
-      rpId = account.rpId,
-      sessionKey = loadLegacySessionKey(activity = activity, ownerAddress = account.address),
-    ).toIdentityWriteResult()
+      ownerAddress = ownerAddress,
+      node = PirateNameRecordsApi.computeNode(primary.fullName),
+      keys = listOf(PirateNameRecordsApi.XMTP_INBOX_ID_RECORD_KEY),
+      values = listOf(normalizedInboxId),
+    )
   }
 
-  private fun loadLegacyAccount(
+  private suspend fun runContractCall(
     activity: FragmentActivity,
     ownerAddress: String,
-  ): TempoPasskeyManager.PasskeyAccount? {
+    to: String,
+    data: String,
+    intentType: String,
+    intentArgs: JSONObject,
+    fallbackError: String,
+  ): IdentityWriteResult {
     val normalizedOwnerAddress = ownerAddress.trim()
-    if (normalizedOwnerAddress.isBlank()) return null
-    return LegacySignerAccountStore.loadAccount(
-      context = activity.applicationContext,
-      ownerAddress = normalizedOwnerAddress,
-    )
-  }
-
-  private fun loadLegacySessionKey(
-    activity: FragmentActivity,
-    ownerAddress: String,
-  ): SessionKeyManager.SessionKey? {
-    val loaded = SessionKeyManager.load(activity)
-    return loaded?.takeIf {
-      SessionKeyManager.isValid(it, ownerAddress = ownerAddress) &&
-        it.keyAuthorization?.isNotEmpty() == true
+    if (normalizedOwnerAddress.isBlank()) {
+      return IdentityWriteResult(success = false, error = "Wallet address is required.")
+    }
+    return runCatching {
+      val txHash =
+        PrivyRelayClient.submitContractCall(
+          context = activity.applicationContext,
+          chainId = PirateChainConfig.BASE_SEPOLIA_CHAIN_ID,
+          to = to,
+          data = data,
+          intentType = intentType,
+          intentArgs = intentArgs,
+        )
+      IdentityWriteResult(success = true, txHash = txHash)
+    }.getOrElse { error ->
+      IdentityWriteResult(
+        success = false,
+        error = sanitizeBridgeError(error.message ?: fallbackError),
+      )
     }
   }
 
-  private fun TempoNameRegisterResult.toIdentityNameRegistrationResult(): IdentityNameRegistrationResult =
-    IdentityNameRegistrationResult(
-      success = success,
-      txHash = txHash,
-      label = label,
-      tld = tld,
-      fullName = fullName,
-      node = node,
-      tokenId = tokenId,
-      error = sanitizeLegacyError(error),
-    )
-
-  private fun TempoProfileUpsertResult.toIdentityWriteResult(): IdentityWriteResult =
-    IdentityWriteResult(
-      success = success,
-      txHash = txHash,
-      error = sanitizeLegacyError(error),
-    )
-
-  private fun TempoRecordsWriteResult.toIdentityWriteResult(): IdentityWriteResult =
-    IdentityWriteResult(
-      success = success,
-      txHash = txHash,
-      error = sanitizeLegacyError(error),
-    )
-
-  private fun sanitizeLegacyError(error: String?): String? {
-    val raw = error ?: return null
-    return when (raw) {
-      "Tempo profile tx failed" -> "Profile update failed."
-      "Tempo records tx failed" -> "Identity records update failed."
-      else ->
-        raw
-          .replace("Tempo account", "signing account")
-          .replace("Tempo transaction signing", "wallet approval")
-          .replace("Tempo passkey account", "signing account")
-          .replace("Tempo publish signing", "wallet approval")
-    }
-  }
+  private fun sanitizeBridgeError(error: String): String =
+    error
+      .replace("publish signing", "wallet approval")
 }

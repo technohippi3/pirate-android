@@ -1,10 +1,10 @@
 package sc.pirate.app.profile
 
 import sc.pirate.app.BuildConfig
-import sc.pirate.app.tempo.P256Utils
-import sc.pirate.app.tempo.TempoClient
+import sc.pirate.app.crypto.P256Utils
+import sc.pirate.app.PirateChainConfig
 import sc.pirate.app.song.SongArtistApi
-import sc.pirate.app.util.tempoMusicSocialSubgraphUrls
+import sc.pirate.app.util.storyMusicSocialSubgraphUrls
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -148,7 +148,7 @@ object ProfileMusicApi {
     val kind: Int?,
   )
 
-  private fun musicSocialSubgraphUrls(): List<String> = tempoMusicSocialSubgraphUrls()
+  private fun musicSocialSubgraphUrls(): List<String> = storyMusicSocialSubgraphUrls()
 
   private fun isSubgraphAvailabilityError(error: Throwable?): Boolean {
     val msg = error?.message?.lowercase().orEmpty()
@@ -346,7 +346,7 @@ object ProfileMusicApi {
   }
 
   private fun resolvePublishCoordinatorAddressOrNull(): String? {
-    val raw = BuildConfig.TEMPO_PUBLISH_COORDINATOR.trim()
+    val raw = BuildConfig.STORY_PUBLISH_COORDINATOR.trim()
     if (raw.isBlank()) return null
     val normalized = normalizeAddressOrNull(raw) ?: return null
     if (normalized == "0x0000000000000000000000000000000000000000") return null
@@ -440,7 +440,7 @@ object ProfileMusicApi {
         )
     val request =
       Request.Builder()
-        .url(TempoClient.RPC_URL)
+        .url(PirateChainConfig.STORY_AENEID_RPC_URL)
         .post(payload.toString().toRequestBody(jsonMediaType))
         .build()
     return runCatching {

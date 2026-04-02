@@ -19,13 +19,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
-import androidx.fragment.app.FragmentActivity
 import sc.pirate.app.music.fetchTrackMeta
 import sc.pirate.app.music.resolveReleaseCoverUrl
 import sc.pirate.app.R
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
-import sc.pirate.app.tempo.TempoSessionKeyApi
 import java.io.File
 import java.time.LocalDate
 import kotlinx.coroutines.CancellationException
@@ -130,8 +126,6 @@ fun LearnScreen(
   initialTitle: String? = null,
   initialArtist: String? = null,
   miniPlayerVisible: Boolean = false,
-  hostActivity: FragmentActivity? = null,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount? = null,
   onLearnSessionVisibilityChange: (Boolean) -> Unit = {},
   onExitToLearn: () -> Unit = {},
   onOpenStudySet: (String?, String?, String?, Int, String?, String?) -> Unit = { _, _, _, _, _, _ -> },
@@ -183,8 +177,8 @@ fun LearnScreen(
   var sayItBackRecorder by remember { mutableStateOf<MediaRecorder?>(null) }
   var sayItBackAttestation by remember { mutableStateOf<SayItBackStreakAttestation?>(null) }
 
-  var pendingAttempts by remember { mutableStateOf<List<TempoStudyAttemptInput>>(emptyList()) }
-  var pendingStreakClaims by remember { mutableStateOf<List<TempoStreakClaimInput>>(emptyList()) }
+  var pendingAttempts by remember { mutableStateOf<List<StudyAttemptInput>>(emptyList()) }
+  var pendingStreakClaims by remember { mutableStateOf<List<StreakClaimInput>>(emptyList()) }
   var sessionStartPendingAttemptCount by remember { mutableIntStateOf(0) }
   var sessionStartPendingClaimCount by remember { mutableIntStateOf(0) }
   var sessionStartDisplayedStreakDays by remember { mutableIntStateOf(0) }
@@ -282,14 +276,12 @@ fun LearnScreen(
   }
 
   fun resolvePendingOwnerAddress(): String {
-    val accountAddress = tempoAccount?.address?.trim().orEmpty()
-    if (accountAddress.isNotBlank()) return accountAddress
     return userAddress?.trim().orEmpty()
   }
 
   fun persistPendingSyncState(
-    attempts: List<TempoStudyAttemptInput> = pendingAttempts,
-    streakClaims: List<TempoStreakClaimInput> = pendingStreakClaims,
+    attempts: List<StudyAttemptInput> = pendingAttempts,
+    streakClaims: List<StreakClaimInput> = pendingStreakClaims,
   ) {
     val ownerAddress = resolvePendingOwnerAddress()
     if (ownerAddress.isBlank()) return
@@ -299,42 +291,6 @@ fun LearnScreen(
       attempts = attempts,
       streakClaims = streakClaims,
     )
-  }
-
-  fun loadAuthorizedSessionKey(ownerAddress: String): SessionKeyManager.SessionKey? {
-    val loaded = SessionKeyManager.load(context) ?: return null
-    if (!SessionKeyManager.isValid(loaded, ownerAddress = ownerAddress)) return null
-    if (loaded.keyAuthorization == null || loaded.keyAuthorization!!.isEmpty()) return null
-    return loaded
-  }
-
-  suspend fun ensureLearnBackgroundSavingReady(): SessionKeyManager.SessionKey? {
-    val account = tempoAccount ?: return null
-    val existing = loadAuthorizedSessionKey(account.address)
-    if (existing != null) return existing
-
-    val activity = hostActivity ?: return null
-    onShowMessage("Enabling background saving...")
-    val auth =
-      TempoSessionKeyApi.authorizeSessionKey(
-        activity = activity,
-        account = account,
-        rpId = account.rpId,
-      )
-    val authorized =
-      auth.sessionKey?.takeIf {
-        auth.success &&
-          SessionKeyManager.isValid(it, ownerAddress = account.address) &&
-          it.keyAuthorization != null &&
-          it.keyAuthorization!!.isNotEmpty()
-      }
-    if (authorized != null) {
-      onShowMessage("Background saving enabled.")
-      return authorized
-    }
-
-    onShowMessage("Background saving unavailable. Answers will stay on this device until sync is enabled.")
-    return null
   }
 
   fun resetQuestionState() {
@@ -474,7 +430,7 @@ fun LearnScreen(
 
     val nextAttempts =
       pendingAttempts +
-        TempoStudyAttemptInput(
+        StudyAttemptInput(
           studySetKey = studySetKey,
           questionId = questionId,
           rating = if (correct) 3 else 1,
@@ -488,7 +444,7 @@ fun LearnScreen(
         if (attestation.studySetKey.equals(studySetKey, ignoreCase = true)) {
           nextClaims =
             nextClaims +
-              TempoStreakClaimInput(
+              StreakClaimInput(
                 studySetKey = attestation.studySetKey,
                 dayUtc = attestation.dayUtc,
                 nonce = attestation.nonce,
@@ -498,7 +454,7 @@ fun LearnScreen(
         } else {
           onShowMessage("Streak attestation mismatch. Day claim skipped.")
         }
-      } else if (TempoStreakClaimApi.isConfigured()) {
+      } else if (StreakClaimApi.isConfigured()) {
         onShowMessage("Streak attestation unavailable. Day claim skipped.")
       }
     }
@@ -529,7 +485,7 @@ fun LearnScreen(
   suspend fun flushPendingAttempts(showFailureMessage: Boolean): Boolean {
     val nowSec = System.currentTimeMillis() / 1_000L
     val todayUtc = nowSec / 86_400L
-    val dedupedClaims = LinkedHashMap<String, TempoStreakClaimInput>()
+    val dedupedClaims = LinkedHashMap<String, StreakClaimInput>()
     var droppedExpiredClaims = 0
     var droppedDayMismatchClaims = 0
     for (claim in pendingStreakClaims) {
@@ -555,7 +511,7 @@ fun LearnScreen(
       }
     }
 
-    if (!TempoStreakClaimApi.isConfigured() && remainingClaims.isNotEmpty()) {
+    if (!StreakClaimApi.isConfigured() && remainingClaims.isNotEmpty()) {
       remainingClaims = emptyList()
     }
 
@@ -572,22 +528,8 @@ fun LearnScreen(
     }
     if (attemptsSaving) return false
 
-    val activity = hostActivity
-    val account = tempoAccount
-    if (activity == null || account == null) {
-      attemptsSaveError = null
-      return true
-    }
-
-    val sender = account.address.trim()
-    val normalizedUserAddress = userAddress?.trim().orEmpty()
-    if (normalizedUserAddress.isNotBlank() && !sender.equals(normalizedUserAddress, ignoreCase = true)) {
-      attemptsSaveError = null
-      return true
-    }
-
-    val usableSessionKey = loadAuthorizedSessionKey(sender)
-    if (usableSessionKey == null) {
+    val sender = userAddress?.trim().orEmpty()
+    if (!isAuthenticated || sender.isBlank()) {
       attemptsSaveError = null
       return true
     }
@@ -597,11 +539,10 @@ fun LearnScreen(
     try {
       if (remainingAttempts.isNotEmpty()) {
         val result =
-          TempoStudyAttemptsApi.submitAttempts(
-            activity = activity,
-            account = account,
+          StudyAttemptsApi.submitAttempts(
+            context = context,
+            ownerAddress = sender,
             attempts = remainingAttempts,
-            sessionKey = usableSessionKey,
           )
 
         val submittedCount = result.submittedCount.coerceAtMost(remainingAttempts.size)
@@ -634,11 +575,10 @@ fun LearnScreen(
 
       if (remainingClaims.isNotEmpty()) {
         val claimResult =
-          TempoStreakClaimApi.submitClaims(
-            activity = activity,
-            account = account,
+          StreakClaimApi.submitClaims(
+            context = context,
+            ownerAddress = sender,
             claims = remainingClaims,
-            sessionKey = usableSessionKey,
           )
         if (claimResult.submittedCount > 0) {
           remainingClaims = remainingClaims.drop(claimResult.submittedCount.coerceAtMost(remainingClaims.size))
@@ -1338,7 +1278,6 @@ fun LearnScreen(
             version = initialVersion.coerceIn(1, 255),
             language = pack.language,
           )
-        ensureLearnBackgroundSavingReady()
         resetSession()
         startSession(
           questions = questions,
@@ -1580,7 +1519,6 @@ fun LearnScreen(
     selectedStudySetKey = normalizedStudySetKey
     studyPack = pack
     queue = songQueue
-    ensureLearnBackgroundSavingReady()
     resetSession()
     startSession(
       questions = questions,
@@ -1625,7 +1563,6 @@ fun LearnScreen(
       return false
     }
 
-    ensureLearnBackgroundSavingReady()
     resetSession()
     startSession(
       questions = mergedQuestions,
@@ -1772,7 +1709,7 @@ fun LearnScreen(
       sayItBackScore = result.score
       sayItBackPassed = result.passed
       sayItBackAttestation = result.streakAttestation
-      if (result.passed && TempoStreakClaimApi.isConfigured() && result.streakAttestation == null) {
+      if (result.passed && StreakClaimApi.isConfigured() && result.streakAttestation == null) {
         onShowMessage("Streak attestation unavailable. Day claim skipped.")
       }
       if (result.passed) {
@@ -1918,7 +1855,6 @@ fun LearnScreen(
     onExitSession = { requestExitSession() },
     onPracticeAgain = {
       scope.launch {
-        ensureLearnBackgroundSavingReady()
         if (sessionSeedQuestions.isEmpty() || sessionSeedQueue.isEmpty()) return@launch
         startSession(
           questions = sessionSeedQuestions,

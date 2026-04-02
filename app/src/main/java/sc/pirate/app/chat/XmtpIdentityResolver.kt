@@ -4,7 +4,7 @@ import android.content.Context
 import android.util.Log
 import sc.pirate.app.BuildConfig
 import sc.pirate.app.resolveProfileIdentityWithRetry
-import sc.pirate.app.profile.TempoNameRecordsApi
+import sc.pirate.app.profile.PirateNameRecordsApi
 import kotlinx.coroutines.delay
 import org.xmtp.android.library.Client
 import org.xmtp.android.library.libxmtp.IdentityKind
@@ -64,7 +64,7 @@ internal class XmtpIdentityResolver(
         return byIdentity
       }
 
-      val byNameRecord = TempoNameRecordsApi.getXmtpInboxIdForAddress(normalizedAddress)
+      val byNameRecord = PirateNameRecordsApi.getXmtpInboxIdForAddress(normalizedAddress)
       if (!byNameRecord.isNullOrBlank()) {
         debugLog("resolveInboxId viaNameRecord address=${shortForLog(normalizedAddress)} inbox=${shortForLog(byNameRecord)}")
         return byNameRecord
@@ -74,27 +74,27 @@ internal class XmtpIdentityResolver(
       throw IllegalStateException("No XMTP inboxId for address=$normalizedAddress")
     }
 
-    val normalizedTempoName = trimmed.lowercase().removePrefix("@")
-    debugLog("resolveInboxId input=${shortForLog(trimmed)} treatedAsName=$normalizedTempoName")
-    val resolvedAddress = TempoNameRecordsApi.resolveAddressForName(trimmed)
+    val normalizedName = trimmed.lowercase().removePrefix("@")
+    debugLog("resolveInboxId input=${shortForLog(trimmed)} treatedAsName=$normalizedName")
+    val resolvedAddress = PirateNameRecordsApi.resolveAddressForName(trimmed)
     if (!resolvedAddress.isNullOrBlank()) {
       val normalizedResolved = normalizeEthAddress(resolvedAddress)
-      val seededIdentity = cacheResolvedTempoIdentity(normalizedResolved, normalizedTempoName)
+      val seededIdentity = cacheResolvedNameIdentity(normalizedResolved, normalizedName)
       val byIdentity = client.inboxIdFromIdentity(PublicIdentity(IdentityKind.ETHEREUM, normalizedResolved))
       if (!byIdentity.isNullOrBlank()) {
-        debugLog("resolveInboxId name->address->identity name=$normalizedTempoName address=${shortForLog(normalizedResolved)} inbox=${shortForLog(byIdentity)}")
+        debugLog("resolveInboxId name->address->identity name=$normalizedName address=${shortForLog(normalizedResolved)} inbox=${shortForLog(byIdentity)}")
         cacheInboxResolution(byIdentity, normalizedResolved, seededIdentity)
         return byIdentity
       }
 
-      val byNameRecord = TempoNameRecordsApi.getXmtpInboxIdForName(trimmed)
+      val byNameRecord = PirateNameRecordsApi.getXmtpInboxIdForName(trimmed)
       if (!byNameRecord.isNullOrBlank()) {
-        debugLog("resolveInboxId name->address->nameRecord name=$normalizedTempoName address=${shortForLog(normalizedResolved)} inbox=${shortForLog(byNameRecord)}")
+        debugLog("resolveInboxId name->address->nameRecord name=$normalizedName address=${shortForLog(normalizedResolved)} inbox=${shortForLog(byNameRecord)}")
         cacheInboxResolution(byNameRecord, normalizedResolved, seededIdentity)
         return byNameRecord
       }
 
-      warnLog("resolveInboxId failed name=$normalizedTempoName address=${shortForLog(normalizedResolved)} noInboxId")
+      warnLog("resolveInboxId failed name=$normalizedName address=${shortForLog(normalizedResolved)} noInboxId")
       throw IllegalStateException("No XMTP inboxId for name=$trimmed")
     }
 
@@ -186,11 +186,11 @@ internal class XmtpIdentityResolver(
       return persisted
     }
 
-    val tempoName = resolveTempoPrimaryNameWithRetry(normalized)
-    if (!tempoName.isNullOrBlank()) {
-      val node = TempoNameRecordsApi.computeNode(tempoName)
+    val primaryName = resolvePrimaryNameWithRetry(normalized)
+    if (!primaryName.isNullOrBlank()) {
+      val node = PirateNameRecordsApi.computeNode(primaryName)
       val avatarUri =
-        TempoNameRecordsApi.getTextRecord(node, "avatar")
+        PirateNameRecordsApi.getTextRecord(node, "avatar")
           ?.trim()
           ?.takeIf { it.isNotBlank() }
       val fallbackAvatar =
@@ -199,12 +199,12 @@ internal class XmtpIdentityResolver(
             ?.trim()
             ?.takeIf { it.isNotBlank() }
         }
-      val resolved = ResolvedPeerIdentity(displayName = tempoName, avatarUri = avatarUri ?: fallbackAvatar)
+      val resolved = ResolvedPeerIdentity(displayName = primaryName, avatarUri = avatarUri ?: fallbackAvatar)
       peerIdentityByAddress[normalized] = resolved
       persistAddressIdentity(normalized, resolved)
       debugLog(
-        "resolvePeerIdentity tempoNameResolved address=${shortForLog(normalized)} " +
-          "name=$tempoName avatarRecord=${!avatarUri.isNullOrBlank()} avatarFallback=${!fallbackAvatar.isNullOrBlank()}",
+        "resolvePeerIdentity primaryNameResolved address=${shortForLog(normalized)} " +
+          "name=$primaryName avatarRecord=${!avatarUri.isNullOrBlank()} avatarFallback=${!fallbackAvatar.isNullOrBlank()}",
       )
       return resolved
     }
@@ -223,16 +223,16 @@ internal class XmtpIdentityResolver(
     return fallback
   }
 
-  private suspend fun cacheResolvedTempoIdentity(
+  private suspend fun cacheResolvedNameIdentity(
     normalizedAddress: String,
-    normalizedTempoName: String,
+    normalizedName: String,
   ): ResolvedPeerIdentity {
     val fallbackProfile = resolveProfileIdentityWithRetry(normalizedAddress, attempts = 1)
     val avatarUri =
       runCatching {
-        if (normalizedTempoName.isBlank()) null else {
-          val node = TempoNameRecordsApi.computeNode(normalizedTempoName)
-          TempoNameRecordsApi.getTextRecord(node, "avatar")
+        if (normalizedName.isBlank()) null else {
+          val node = PirateNameRecordsApi.computeNode(normalizedName)
+          PirateNameRecordsApi.getTextRecord(node, "avatar")
             ?.trim()
             ?.takeIf { it.isNotBlank() }
         }
@@ -240,13 +240,13 @@ internal class XmtpIdentityResolver(
     val fallbackName = fallbackProfile.first?.trim()?.takeIf { it.isNotBlank() }
     val identity =
       ResolvedPeerIdentity(
-        displayName = normalizedTempoName.ifBlank { fallbackName ?: normalizedAddress },
+        displayName = normalizedName.ifBlank { fallbackName ?: normalizedAddress },
         avatarUri = avatarUri,
       )
     peerIdentityByAddress[normalizedAddress] = identity
     persistAddressIdentity(normalizedAddress, identity)
     debugLog(
-      "cacheResolvedTempoIdentity address=${shortForLog(normalizedAddress)} name=${identity.displayName} " +
+      "cacheResolvedNameIdentity address=${shortForLog(normalizedAddress)} name=${identity.displayName} " +
         "avatar=${!identity.avatarUri.isNullOrBlank()}",
     )
     return identity
@@ -357,7 +357,7 @@ internal class XmtpIdentityResolver(
     return false
   }
 
-  private suspend fun resolveTempoPrimaryNameWithRetry(
+  private suspend fun resolvePrimaryNameWithRetry(
     address: String,
     attempts: Int = 3,
     retryDelayMs: Long = 350,
@@ -365,7 +365,7 @@ internal class XmtpIdentityResolver(
     var last: String? = null
     repeat(attempts.coerceAtLeast(1)) { attempt ->
       val resolved =
-        runCatching { TempoNameRecordsApi.getPrimaryName(address) }
+        runCatching { PirateNameRecordsApi.getPrimaryName(address) }
           .getOrNull()
           ?.trim()
           ?.takeIf { it.isNotBlank() }

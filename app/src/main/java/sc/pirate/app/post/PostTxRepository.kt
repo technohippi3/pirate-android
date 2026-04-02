@@ -3,13 +3,11 @@ package sc.pirate.app.post
 import android.content.Context
 import android.net.Uri
 import android.util.Log
-import androidx.fragment.app.FragmentActivity
+import sc.pirate.app.PirateChainConfig
 import sc.pirate.app.identity.SelfVerificationService
+import sc.pirate.app.auth.privy.PrivyRelayClient
 import sc.pirate.app.music.SongPublishService
-import sc.pirate.app.tempo.P256Utils
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoClient
-import sc.pirate.app.tempo.TempoPasskeyManager
+import sc.pirate.app.crypto.P256Utils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONArray
@@ -55,8 +53,6 @@ object PostTxRepository {
 
   suspend fun createPost(
     context: Context,
-    activity: FragmentActivity,
-    account: TempoPasskeyManager.PasskeyAccount,
     ownerAddress: String,
     songTrackId: String?,
     songStoryIpId: String? = null,
@@ -64,20 +60,10 @@ object PostTxRepository {
     captionText: String = "",
     taggedItems: List<PostTaggedItem> = emptyList(),
     previewAtMs: Long? = null,
-    rpId: String = account.rpId,
-    sessionKey: SessionKeyManager.SessionKey? = null,
   ): PostCreateTxResult {
     return runCatching {
       val sender = PostTxInternals.normalizeAddress(ownerAddress)
-      if (!sender.equals(PostTxInternals.normalizeAddress(account.address), ignoreCase = true)) {
-        throw IllegalStateException("Account mismatch: active signer does not match owner address")
-      }
-
       val feed = PostTxInternals.feedContractOrNull() ?: throw IllegalStateException("Feed contract is not configured")
-      val chainId = withContext(Dispatchers.IO) { TempoClient.getChainId() }
-      if (chainId != TempoClient.CHAIN_ID) {
-        throw IllegalStateException("Wrong chain connected: $chainId (expected ${TempoClient.CHAIN_ID})")
-      }
 
       val isVerified = withContext(Dispatchers.IO) { PostTxInternals.isVerifiedForFeed(feed = feed, userAddress = sender) }
       if (!isVerified) {
@@ -125,36 +111,21 @@ object PostTxRepository {
           )
         }
 
-      val fees = withContext(Dispatchers.IO) { TempoClient.getSuggestedFees() }
-      val gasLimit = withContext(Dispatchers.IO) {
-        val estimated = PostTxInternals.estimateGas(from = sender, to = feed, data = calldata)
-        PostTxInternals.withBuffer(estimated = estimated, minimum = MIN_GAS_LIMIT_CREATE)
-      }
-      val nonce = withContext(Dispatchers.IO) { TempoClient.getNonce(sender) }
-      val tx = PostTxInternals.buildTx(
-        to = feed,
-        callData = calldata,
-        nonce = nonce,
-        gasLimit = gasLimit,
-        fees = fees,
-      )
-
-      val signedTx = withContext(Dispatchers.IO) {
-        PostTxInternals.signTx(
-          activity = activity,
-          account = account,
-          rpId = rpId,
-          tx = tx,
-          sessionKey = sessionKey,
+      val txHash =
+        PrivyRelayClient.submitContractCall(
+          context = context,
+          chainId = PirateChainConfig.STORY_AENEID_CHAIN_ID,
+          to = feed,
+          data = calldata,
+          intentType = "pirate.post.create",
+          intentArgs =
+            JSONObject()
+              .put("songTrackId", trackId)
+              .put("songStoryIpId", requestedSongStoryIpId.ifBlank { JSONObject.NULL })
+              .put("videoRef", videoUpload.ref)
+              .put("captionRef", captionUpload.ref),
         )
-      }
-      val txHash = withContext(Dispatchers.IO) {
-        TempoClient.sendSponsoredRawTransaction(
-          signedTxHex = signedTx,
-          senderAddress = sender,
-        )
-      }
-      val receipt = withContext(Dispatchers.IO) { TempoClient.waitForTransactionReceipt(txHash) }
+      val receipt = withContext(Dispatchers.IO) { PostTxInternals.awaitPostReceipt(txHash) }
       if (!receipt.isSuccess) {
         throw IllegalStateException("Post transaction reverted on-chain: $txHash")
       }
@@ -164,7 +135,7 @@ object PostTxRepository {
         PostStoryEnqueueSync.enqueueOrPersist(
           context = context,
           ownerAddress = sender,
-          chainId = TempoClient.CHAIN_ID,
+          chainId = PirateChainConfig.STORY_AENEID_CHAIN_ID,
           txHash = txHash,
           postId = postId,
         )
@@ -187,58 +158,36 @@ object PostTxRepository {
   }
 
   suspend fun likePost(
-    activity: FragmentActivity,
-    account: TempoPasskeyManager.PasskeyAccount,
+    context: Context,
     ownerAddress: String,
     postId: String,
-    rpId: String = account.rpId,
-    sessionKey: SessionKeyManager.SessionKey? = null,
   ): PostActionTxResult = submitPostAction(
-    activity = activity,
-    account = account,
+    context = context,
     ownerAddress = ownerAddress,
     postId = postId,
     functionName = "likePost",
-    rpId = rpId,
-    sessionKey = sessionKey,
   )
 
   suspend fun unlikePost(
-    activity: FragmentActivity,
-    account: TempoPasskeyManager.PasskeyAccount,
+    context: Context,
     ownerAddress: String,
     postId: String,
-    rpId: String = account.rpId,
-    sessionKey: SessionKeyManager.SessionKey? = null,
   ): PostActionTxResult = submitPostAction(
-    activity = activity,
-    account = account,
+    context = context,
     ownerAddress = ownerAddress,
     postId = postId,
     functionName = "unlikePost",
-    rpId = rpId,
-    sessionKey = sessionKey,
   )
 
   private suspend fun submitPostAction(
-    activity: FragmentActivity,
-    account: TempoPasskeyManager.PasskeyAccount,
+    context: Context,
     ownerAddress: String,
     postId: String,
     functionName: String,
-    rpId: String,
-    sessionKey: SessionKeyManager.SessionKey?,
   ): PostActionTxResult {
     return runCatching {
       val sender = PostTxInternals.normalizeAddress(ownerAddress)
-      if (!sender.equals(PostTxInternals.normalizeAddress(account.address), ignoreCase = true)) {
-        throw IllegalStateException("Account mismatch: active signer does not match owner address")
-      }
       val feed = PostTxInternals.feedContractOrNull() ?: throw IllegalStateException("Feed contract is not configured")
-      val chainId = withContext(Dispatchers.IO) { TempoClient.getChainId() }
-      if (chainId != TempoClient.CHAIN_ID) {
-        throw IllegalStateException("Wrong chain connected: $chainId (expected ${TempoClient.CHAIN_ID})")
-      }
 
       if (functionName != "unlikePost") {
         val isVerified = withContext(Dispatchers.IO) { PostTxInternals.isVerifiedForFeed(feed = feed, userAddress = sender) }
@@ -259,36 +208,16 @@ object PostTxRepository {
 
       val normalizedPostId = PostTxInternals.normalizeBytes32(postId, "postId")
       val calldata = PostTxInternals.encodePostActionCalldata(functionName = functionName, postId = normalizedPostId)
-      val fees = withContext(Dispatchers.IO) { TempoClient.getSuggestedFees() }
-      val gasLimit = withContext(Dispatchers.IO) {
-        val estimated = PostTxInternals.estimateGas(from = sender, to = feed, data = calldata)
-        PostTxInternals.withBuffer(estimated = estimated, minimum = MIN_GAS_LIMIT_ACTION)
-      }
-      val nonce = withContext(Dispatchers.IO) { TempoClient.getNonce(sender) }
-      val tx = PostTxInternals.buildTx(
-        to = feed,
-        callData = calldata,
-        nonce = nonce,
-        gasLimit = gasLimit,
-        fees = fees,
-      )
-
-      val signedTx = withContext(Dispatchers.IO) {
-        PostTxInternals.signTx(
-          activity = activity,
-          account = account,
-          rpId = rpId,
-          tx = tx,
-          sessionKey = sessionKey,
+      val txHash =
+        PrivyRelayClient.submitContractCall(
+          context = context,
+          chainId = PirateChainConfig.STORY_AENEID_CHAIN_ID,
+          to = feed,
+          data = calldata,
+          intentType = if (functionName == "likePost") "pirate.post.like" else "pirate.post.unlike",
+          intentArgs = JSONObject().put("postId", normalizedPostId),
         )
-      }
-      val txHash = withContext(Dispatchers.IO) {
-        TempoClient.sendSponsoredRawTransaction(
-          signedTxHex = signedTx,
-          senderAddress = sender,
-        )
-      }
-      val receipt = withContext(Dispatchers.IO) { TempoClient.waitForTransactionReceipt(txHash) }
+      val receipt = withContext(Dispatchers.IO) { PostTxInternals.awaitPostReceipt(txHash) }
       if (!receipt.isSuccess) {
         throw IllegalStateException("$functionName transaction reverted on-chain: $txHash")
       }

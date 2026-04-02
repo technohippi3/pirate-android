@@ -1,13 +1,9 @@
 package sc.pirate.app.music
 
 import android.content.Context
-import androidx.fragment.app.FragmentActivity
-import sc.pirate.app.store.submitCallWithFallback
-import sc.pirate.app.tempo.ContentKeyManager
-import sc.pirate.app.tempo.P256Utils
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoClient
-import sc.pirate.app.tempo.TempoPasskeyManager
+import sc.pirate.app.crypto.ContentKeyManager
+import sc.pirate.app.auth.privy.PrivyRelayClient
+import sc.pirate.app.crypto.P256Utils
 import sc.pirate.app.util.HttpClients
 import java.math.BigInteger
 import kotlinx.coroutines.Dispatchers
@@ -47,6 +43,7 @@ private data class PurchasePaymentRequirements(
 )
 
 private data class SongPurchaseQuote(
+  val paymentRoute: String,
   val songTrackId: String,
   val purchaseId: String,
   val quoteId: String,
@@ -66,7 +63,6 @@ object SongPurchaseApi {
   private val hexAddressRegex = Regex("^0x[0-9a-fA-F]{40}$")
   private val bytes32Regex = Regex("^0x[0-9a-fA-F]{64}$")
   private val positiveIntegerRegex = Regex("^\\d+$")
-  private const val MIN_GAS_LIMIT_PURCHASE_TRANSFER = 120_000L
   private const val SONG_ASSET_READY_RETRY_WINDOW_MS = 90_000L
   private const val SONG_ASSET_READY_RETRY_DELAY_MS = 3_000L
 
@@ -101,29 +97,17 @@ object SongPurchaseApi {
   }
 
   suspend fun buySong(
-    activity: FragmentActivity,
-    appContext: Context,
-    account: TempoPasskeyManager.PasskeyAccount,
+    context: Context,
     ownerAddress: String,
     songTrackId: String,
-    sessionKey: SessionKeyManager.SessionKey? = null,
-    preferSelfPay: Boolean = false,
   ): SongPurchaseResult {
     return runCatching {
       val owner = normalizeAddress(ownerAddress)
       if (!isHexAddress(owner)) throw IllegalStateException("Invalid wallet address")
-      if (normalizeAddress(account.address) != owner) {
-        throw IllegalStateException("Account mismatch: active signer does not match wallet")
-      }
 
       val normalizedTrackId = songTrackId.trim().lowercase()
       if (!bytes32Regex.matches(normalizedTrackId)) {
         throw IllegalStateException("Invalid song track id")
-      }
-
-      val chainId = withContext(Dispatchers.IO) { TempoClient.getChainId() }
-      if (chainId != TempoClient.CHAIN_ID) {
-        throw IllegalStateException("Wrong chain connected: $chainId (expected ${TempoClient.CHAIN_ID})")
       }
 
       val apiBase = SongPublishService.API_CORE_URL.trim().trimEnd('/')
@@ -132,25 +116,35 @@ object SongPurchaseApi {
       val paymentAmount =
         parsePositiveBigInteger(amountRaw)
           ?: throw IllegalStateException("Invalid payment amount from quote")
-      if (quote.payment.scheme != "tempo-tip20") {
+      if (quote.payment.scheme != "evm-erc20-transfer") {
         throw IllegalStateException("Unsupported payment scheme: ${quote.payment.scheme}")
       }
       if (!isHexAddress(quote.payment.asset) || !isHexAddress(quote.payment.payTo)) {
         throw IllegalStateException("Invalid payment addresses from quote")
       }
 
-      val buyerContentPublicKey = resolveBuyerContentPublicKey(appContext)
+      val chainId =
+        parsePaymentNetworkChainId(quote.payment.network)
+          ?: throw IllegalStateException("Unsupported payment network: ${quote.payment.network}")
+      val buyerContentPublicKey = resolveBuyerContentPublicKey(context.applicationContext)
       val transferCallData = encodeTransferCalldata(payTo = quote.payment.payTo, amount = paymentAmount)
       val txHash =
-        submitCallWithFallback(
-          activity = activity,
-          account = account,
+        PrivyRelayClient.submitContractCall(
+          context = context.applicationContext,
+          chainId = chainId,
           to = quote.payment.asset,
-          callData = transferCallData,
-          minimumGasLimit = MIN_GAS_LIMIT_PURCHASE_TRANSFER,
-          rpId = account.rpId,
-          sessionKey = sessionKey,
-          preferSelfPay = preferSelfPay,
+          data = transferCallData,
+          intentType = "pirate.song.purchase",
+          intentArgs =
+            JSONObject()
+              .put("songTrackId", normalizedTrackId)
+              .put("purchaseId", quote.purchaseId)
+              .put("quoteId", quote.quoteId)
+              .put("paymentRoute", quote.paymentRoute)
+              .put("network", quote.payment.network)
+              .put("asset", quote.payment.asset)
+              .put("payTo", quote.payment.payTo)
+              .put("amount", amountRaw),
         )
 
       val purchaseId =
@@ -260,6 +254,7 @@ object SongPurchaseApi {
       val purchaseId = body?.optString("purchaseId", "").orEmpty().trim()
       val quoteId = body?.optString("quoteId", "").orEmpty().trim()
       val resolvedTrackId = body?.optString("songTrackId", "").orEmpty().trim().ifBlank { songTrackId }
+      val paymentRoute = body?.optString("paymentRoute", "").orEmpty().trim()
       val paymentObj = body?.optJSONObject("paymentRequirements")
       val payment =
         PurchasePaymentRequirements(
@@ -270,13 +265,14 @@ object SongPurchaseApi {
           payTo = normalizeAddress(paymentObj?.optString("payTo", "").orEmpty()),
         )
 
-      if (purchaseId.isBlank() || quoteId.isBlank()) {
+      if (purchaseId.isBlank() || quoteId.isBlank() || paymentRoute.isBlank()) {
         throw IllegalStateException("Invalid purchase quote response")
       }
       if (resolvedTrackId.isBlank() || payment.network.isBlank()) {
         throw IllegalStateException("Incomplete purchase quote response")
       }
       SongPurchaseQuote(
+        paymentRoute = paymentRoute,
         songTrackId = resolvedTrackId,
         purchaseId = purchaseId,
         quoteId = quoteId,
@@ -295,6 +291,7 @@ object SongPurchaseApi {
     val payload =
       JSONObject()
         .put("songTrackId", quote.songTrackId)
+        .put("paymentRoute", quote.paymentRoute)
         .put("purchaseId", quote.purchaseId)
         .put("quoteId", quote.quoteId)
         .put("txHash", txHash)
@@ -342,6 +339,11 @@ object SongPurchaseApi {
     if (!positiveIntegerRegex.matches(trimmed)) return null
     if (trimmed == "0") return null
     return trimmed.toBigIntegerOrNull()?.takeIf { it > BigInteger.ZERO }
+  }
+
+  private fun parsePaymentNetworkChainId(raw: String): Long? {
+    val match = Regex("^eip155:(\\d+)$", RegexOption.IGNORE_CASE).matchEntire(raw.trim()) ?: return null
+    return match.groupValues.getOrNull(1)?.toLongOrNull()?.takeIf { it > 0L }
   }
 
   private fun encodeTransferCalldata(

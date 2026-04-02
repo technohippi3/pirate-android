@@ -1,7 +1,7 @@
 package sc.pirate.app.music
 
-import sc.pirate.app.tempo.P256Utils
-import sc.pirate.app.tempo.TempoClient
+import sc.pirate.app.PirateChainConfig
+import sc.pirate.app.crypto.P256Utils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
@@ -21,7 +21,9 @@ import org.web3j.abi.datatypes.generated.Uint32
 import org.web3j.abi.datatypes.generated.Uint8
 import java.util.Locale
 
-internal const val GAS_LIMIT_BUFFER = 250_000L
+private val client = OkHttpClient()
+private val jsonType = "application/json; charset=utf-8".toMediaType()
+private const val GAS_LIMIT_BUFFER = 250_000L
 internal val EXPIRING_NONCE_KEY = ByteArray(32) { 0xFF.toByte() }
 internal const val EXPIRY_WINDOW_SEC = 25L
 internal const val MAX_UNDERPRICED_RETRIES = 4
@@ -29,10 +31,21 @@ internal const val RETRY_DELAY_MS = 220L
 internal const val RELAY_MIN_PRIORITY_FEE_PER_GAS = 6_000_000_000L
 internal const val RELAY_MIN_MAX_FEE_PER_GAS = 120_000_000_000L
 
+internal data class PlaylistEip1559Fees(
+  val maxPriorityFeePerGas: Long,
+  val maxFeePerGas: Long,
+)
+
 private val bidFloorLock = Any()
-private val lastBidByAddress = mutableMapOf<String, TempoClient.Eip1559Fees>()
-private val client = OkHttpClient()
-private val jsonType = "application/json; charset=utf-8".toMediaType()
+private val lastBidByAddress = mutableMapOf<String, PlaylistEip1559Fees>()
+
+internal data class PlaylistTransactionReceipt(
+  val txHash: String,
+  val statusHex: String,
+) {
+  val isSuccess: Boolean
+    get() = statusHex.equals("0x1", ignoreCase = true)
+}
 
 internal fun encodeCreatePlaylist(
   name: String,
@@ -112,14 +125,6 @@ internal fun normalizeTrackIds(trackIds: List<String>): List<String> {
   return out
 }
 
-internal fun normalizeAddress(value: String): String {
-  val clean = value.trim().removePrefix("0x").removePrefix("0X").lowercase(Locale.US)
-  require(clean.length == 40 && clean.all { it.isDigit() || it in 'a'..'f' }) {
-    "Invalid address: $value"
-  }
-  return "0x$clean"
-}
-
 internal fun normalizeBytes32(
   value: String,
   fieldName: String,
@@ -145,7 +150,7 @@ internal fun truncateUtf8(
   return out
 }
 
-internal fun estimateGas(
+internal fun estimateStoryGas(
   from: String,
   to: String,
   data: String,
@@ -167,7 +172,7 @@ internal fun estimateGas(
 
   val req =
     Request.Builder()
-      .url(TempoClient.RPC_URL)
+      .url(PirateChainConfig.STORY_AENEID_RPC_URL)
       .post(payload.toString().toRequestBody(jsonType))
       .build()
 
@@ -181,55 +186,29 @@ internal fun estimateGas(
   }
 }
 
-internal fun withBuffer(
-  estimated: Long,
-  minimum: Long,
-): Long {
-  if (estimated <= 0L) return minimum
-  val padded = saturatingAdd(saturatingMul(estimated, 3) / 2, GAS_LIMIT_BUFFER)
-  return maxOf(minimum, padded)
-}
 
-internal suspend fun awaitPlaylistReceipt(txHash: String): TempoClient.TransactionReceipt {
-  val timeoutMs = (EXPIRY_WINDOW_SEC + 20L) * 1000L
-  val receipt =
-    withContext(Dispatchers.IO) {
-      runCatching {
-        TempoClient.waitForTransactionReceipt(
-          txHash = txHash,
-          timeoutMs = timeoutMs,
-        )
-      }.getOrElse { error ->
-        if (!isReceiptTimeout(error)) throw error
-        null
-      }
-    }
-  if (receipt != null) return receipt
-
-  val txStillKnown = withContext(Dispatchers.IO) { TempoClient.hasTransaction(txHash) }
-  if (!txStillKnown) {
-    throw IllegalStateException("Playlist tx dropped before inclusion: $txHash")
+internal fun normalizeChainAddress(value: String?): String {
+  val clean = value?.trim().orEmpty().removePrefix("0x").removePrefix("0X").lowercase(Locale.US)
+  require(clean.length == 40 && clean.all { it.isDigit() || it in 'a'..'f' }) {
+    "Invalid address: $value"
   }
-
-  delay(2_000L)
-  val lateReceipt = withContext(Dispatchers.IO) { TempoClient.getTransactionReceipt(txHash) }
-  if (lateReceipt != null) return lateReceipt
-  throw IllegalStateException("Playlist tx not confirmed before expiry: $txHash")
+  return "0x$clean"
 }
 
-private fun isReceiptTimeout(error: Throwable): Boolean {
-  val message = error.message.orEmpty()
-  return message.contains("timed out waiting for transaction receipt", ignoreCase = true)
-}
+internal fun estimateGas(
+  from: String,
+  to: String,
+  data: String,
+): Long = estimateStoryGas(from = from, to = to, data = data)
 
-internal fun aggressivelyBumpFees(fees: TempoClient.Eip1559Fees): TempoClient.Eip1559Fees {
+internal fun aggressivelyBumpFees(fees: PlaylistEip1559Fees): PlaylistEip1559Fees {
   val bumpedPriority = maxOf(bumpForReplacement(fees.maxPriorityFeePerGas), saturatingMul(fees.maxPriorityFeePerGas, 2))
   val bumpedMax = maxOf(
     bumpForReplacement(fees.maxFeePerGas),
     saturatingMul(fees.maxFeePerGas, 2),
     saturatingAdd(bumpedPriority, 1_000_000L),
   )
-  return TempoClient.Eip1559Fees(
+  return PlaylistEip1559Fees(
     maxPriorityFeePerGas = bumpedPriority,
     maxFeePerGas = maxOf(bumpedMax, bumpedPriority),
   )
@@ -237,35 +216,35 @@ internal fun aggressivelyBumpFees(fees: TempoClient.Eip1559Fees): TempoClient.Ei
 
 private fun bumpForReplacement(value: Long): Long {
   if (value <= 0L) return 1L
-  val bump = value / 4L // +25%
+  val bump = value / 4L
   return saturatingAdd(value, maxOf(1L, bump))
 }
 
-internal fun withRelayMinimumFeeFloor(fees: TempoClient.Eip1559Fees): TempoClient.Eip1559Fees {
+internal fun withRelayMinimumFeeFloor(fees: PlaylistEip1559Fees): PlaylistEip1559Fees {
   val priority = maxOf(fees.maxPriorityFeePerGas, RELAY_MIN_PRIORITY_FEE_PER_GAS)
   val maxFee = maxOf(
     fees.maxFeePerGas,
     RELAY_MIN_MAX_FEE_PER_GAS,
     saturatingAdd(priority, 1_000_000L),
   )
-  return TempoClient.Eip1559Fees(maxPriorityFeePerGas = priority, maxFeePerGas = maxFee)
+  return PlaylistEip1559Fees(maxPriorityFeePerGas = priority, maxFeePerGas = maxFee)
 }
 
 internal fun withAddressBidFloor(
   address: String,
-  fees: TempoClient.Eip1559Fees,
-): TempoClient.Eip1559Fees {
+  fees: PlaylistEip1559Fees,
+): PlaylistEip1559Fees {
   val key = address.trim().lowercase()
   if (key.isBlank()) return fees
   val previous = synchronized(bidFloorLock) { lastBidByAddress[key] } ?: return fees
   val priority = maxOf(fees.maxPriorityFeePerGas, previous.maxPriorityFeePerGas)
   val maxFee = maxOf(fees.maxFeePerGas, previous.maxFeePerGas, saturatingAdd(priority, 1_000_000L))
-  return TempoClient.Eip1559Fees(maxPriorityFeePerGas = priority, maxFeePerGas = maxFee)
+  return PlaylistEip1559Fees(maxPriorityFeePerGas = priority, maxFeePerGas = maxFee)
 }
 
 internal fun rememberAddressBidFloor(
   address: String,
-  fees: TempoClient.Eip1559Fees,
+  fees: PlaylistEip1559Fees,
 ) {
   val key = address.trim().lowercase()
   if (key.isBlank()) return
@@ -275,7 +254,7 @@ internal fun rememberAddressBidFloor(
       if (previous == null) {
         fees
       } else {
-        TempoClient.Eip1559Fees(
+        PlaylistEip1559Fees(
           maxPriorityFeePerGas = maxOf(previous.maxPriorityFeePerGas, fees.maxPriorityFeePerGas),
           maxFeePerGas = maxOf(previous.maxFeePerGas, fees.maxFeePerGas),
         )
@@ -290,17 +269,34 @@ internal fun isReplacementUnderpriced(error: Throwable): Boolean {
     message.contains("underpriced")
 }
 
-internal fun saturatingAdd(
-  a: Long,
-  b: Long,
-): Long = if (Long.MAX_VALUE - a < b) Long.MAX_VALUE else a + b
-
-internal fun saturatingMul(
-  a: Long,
-  factor: Int,
-): Long = if (a > Long.MAX_VALUE / factor) Long.MAX_VALUE else a * factor
-
 internal fun nowSec(): Long = System.currentTimeMillis() / 1000L
+
+internal fun withBuffer(
+  estimated: Long,
+  minimum: Long,
+): Long {
+  if (estimated <= 0L) return minimum
+  val padded = saturatingAdd(saturatingMul(estimated, 3) / 2, GAS_LIMIT_BUFFER)
+  return maxOf(minimum, padded)
+}
+
+internal suspend fun awaitPlaylistReceipt(txHash: String): PlaylistTransactionReceipt {
+  val deadlineMs = System.currentTimeMillis() + (EXPIRY_WINDOW_SEC + 20L) * 1000L
+  while (System.currentTimeMillis() < deadlineMs) {
+    fetchPlaylistReceiptOrNull(txHash)?.let { return it }
+    delay(1_500L)
+  }
+  val txStillKnown = withContext(Dispatchers.IO) { hasPlaylistTransaction(txHash) }
+  if (!txStillKnown) {
+    throw IllegalStateException("Playlist tx dropped before inclusion: $txHash")
+  }
+  delay(2_000L)
+  return fetchPlaylistReceiptOrNull(txHash)
+    ?: throw IllegalStateException("Playlist tx not confirmed before expiry: $txHash")
+}
+
+internal fun saturatingAdd(a: Long, b: Long): Long = if (Long.MAX_VALUE - a < b) Long.MAX_VALUE else a + b
+internal fun saturatingMul(a: Long, factor: Int): Long = if (a > Long.MAX_VALUE / factor) Long.MAX_VALUE else a * factor
 
 internal fun extractCreatedPlaylistIdFromReceipt(txHash: String): String? {
   val payload =
@@ -312,7 +308,7 @@ internal fun extractCreatedPlaylistIdFromReceipt(txHash: String): String? {
 
   val req =
     Request.Builder()
-      .url(TempoClient.RPC_URL)
+      .url(PirateChainConfig.STORY_AENEID_RPC_URL)
       .post(payload.toString().toRequestBody(jsonType))
       .build()
 
@@ -322,7 +318,7 @@ internal fun extractCreatedPlaylistIdFromReceipt(txHash: String): String? {
     val receipt = body.optJSONObject("result") ?: return null
     val logs = receipt.optJSONArray("logs") ?: return null
     val topic0 = topicHash("PlaylistCreated(bytes32,address,uint32,uint8,uint32,bytes32,uint64,string,string)")
-    val playlistContract = TempoPlaylistApi.PLAYLIST_V1.lowercase(Locale.US)
+    val playlistContract = PirateChainConfig.STORY_PLAYLIST_V1.lowercase(Locale.US)
 
     for (i in 0 until logs.length()) {
       val log = logs.optJSONObject(i) ?: continue
@@ -340,6 +336,53 @@ internal fun extractCreatedPlaylistIdFromReceipt(txHash: String): String? {
   }
 
   return null
+}
+
+private fun fetchPlaylistReceiptOrNull(txHash: String): PlaylistTransactionReceipt? {
+  val payload =
+    JSONObject()
+      .put("jsonrpc", "2.0")
+      .put("id", 1)
+      .put("method", "eth_getTransactionReceipt")
+      .put("params", JSONArray().put(txHash))
+
+  val req =
+    Request.Builder()
+      .url(PirateChainConfig.STORY_AENEID_RPC_URL)
+      .post(payload.toString().toRequestBody(jsonType))
+      .build()
+
+  client.newCall(req).execute().use { response ->
+    if (!response.isSuccessful) return null
+    val body = JSONObject(response.body?.string().orEmpty())
+    val receipt = body.optJSONObject("result") ?: return null
+    return PlaylistTransactionReceipt(
+      txHash = receipt.optString("transactionHash", txHash),
+      statusHex = receipt.optString("status", "0x0"),
+    )
+  }
+}
+
+private fun hasPlaylistTransaction(txHash: String): Boolean {
+  val payload =
+    JSONObject()
+      .put("jsonrpc", "2.0")
+      .put("id", 1)
+      .put("method", "eth_getTransactionByHash")
+      .put("params", JSONArray().put(txHash))
+
+  val req =
+    Request.Builder()
+      .url(PirateChainConfig.STORY_AENEID_RPC_URL)
+      .post(payload.toString().toRequestBody(jsonType))
+      .build()
+
+  client.newCall(req).execute().use { response ->
+    if (!response.isSuccessful) return false
+    val body = JSONObject(response.body?.string().orEmpty())
+    val tx = body.optJSONObject("result") ?: return false
+    return tx.optString("hash", "").trim().equals(txHash, ignoreCase = true)
+  }
 }
 
 private fun topicHash(signature: String): String {

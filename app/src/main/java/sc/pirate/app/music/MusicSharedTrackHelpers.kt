@@ -3,8 +3,8 @@ package sc.pirate.app.music
 import android.content.Context
 import android.net.Uri
 import android.util.Log
-import sc.pirate.app.tempo.ContentKeyManager
-import sc.pirate.app.tempo.EciesContentCrypto
+import sc.pirate.app.crypto.ContentKeyManager
+import sc.pirate.app.crypto.EciesContentCrypto
 import sc.pirate.app.util.shortAddress
 import java.io.File
 import kotlinx.coroutines.Dispatchers

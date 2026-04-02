@@ -3,18 +3,16 @@ package sc.pirate.app.music
 import android.content.Context
 import android.util.Log
 import sc.pirate.app.BuildConfig
-import sc.pirate.app.profile.TempoNameRecordsApi
-import sc.pirate.app.tempo.ContentKeyManager
-import sc.pirate.app.tempo.EciesContentCrypto
-import sc.pirate.app.tempo.P256Utils
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoClient
-import sc.pirate.app.tempo.TempoTransaction
+import sc.pirate.app.PirateChainConfig
+import sc.pirate.app.auth.privy.PrivyRelayClient
+import sc.pirate.app.profile.PirateNameRecordsApi
+import sc.pirate.app.crypto.ContentKeyManager
+import sc.pirate.app.crypto.EciesContentCrypto
+import sc.pirate.app.crypto.P256Utils
 import java.math.BigInteger
 import java.net.URLEncoder
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -37,8 +35,6 @@ internal val uploadedTrackAddressRegex = Regex("^0x[a-fA-F0-9]{40}$")
 private val uploadedTrackBytes32Regex = Regex("^0x[0-9a-f]{64}$")
 private val uploadedTrackDataItemIdRegex = Regex("^[A-Za-z0-9_-]{32,}$")
 private val uploadedTrackCidRegex = Regex("^(Qm[1-9A-HJ-NP-Za-km-z]{44,}|b[a-z2-7]{20,})$")
-private const val uploadedTrackGrantGasMin = 180_000L
-private const val uploadedTrackPublishGasMin = 850_000L
 private const val uploadedTrackVisPrivate = 2
 private const val uploadedTrackZeroBytes32 = "0x0000000000000000000000000000000000000000000000000000000000000000"
 internal val uploadedTrackJsonMediaType = "application/json".toMediaType()
@@ -52,7 +48,7 @@ internal suspend fun resolveUploadedTrackRecipientAddress(rawRecipient: String):
   val clean = rawRecipient.trim().removePrefix("@")
   if (clean.isBlank()) return null
   if (uploadedTrackAddressRegex.matches(clean)) return clean.lowercase()
-  val resolved = TempoNameRecordsApi.resolveAddressForName(clean.lowercase())
+  val resolved = PirateNameRecordsApi.resolveAddressForName(clean.lowercase())
   return resolved?.lowercase()
 }
 
@@ -62,8 +58,8 @@ internal suspend fun ensureUploadedTrackGrantOnChainInternal(
   ownerAddress: String,
   granteeAddress: String,
 ): String = withContext(Dispatchers.IO) {
-  val owner = normalizeAddress(ownerAddress)
-  val grantee = normalizeAddress(granteeAddress)
+  val owner = normalizeChainAddress(ownerAddress)
+  val grantee = normalizeChainAddress(granteeAddress)
   val normalizedContentId = normalizeUploadedContentId(track.contentId.orEmpty())
   if (normalizedContentId.isBlank()) {
     throw IllegalStateException("Track has no contentId.")
@@ -73,28 +69,6 @@ internal suspend fun ensureUploadedTrackGrantOnChainInternal(
     SHARED_WITH_YOU_TAG,
     "share grant request contentId=$normalizedContentId owner=$owner grantee=$grantee",
   )
-
-  val loadedSessionKey = SessionKeyManager.load(context)
-  val validForOwner = SessionKeyManager.isValid(loadedSessionKey, ownerAddress = owner)
-  val keyAuthorizationPresent = loadedSessionKey?.keyAuthorization?.isNotEmpty() == true
-  val sessionKey = loadedSessionKey?.takeIf { validForOwner && keyAuthorizationPresent }
-  if (sessionKey == null) {
-    val nowSec = System.currentTimeMillis() / 1000L
-    val storedOwner = loadedSessionKey?.ownerAddress?.trim()?.lowercase()
-    val ownerMatches = !storedOwner.isNullOrBlank() && storedOwner == owner
-    val expiresAt = loadedSessionKey?.expiresAt
-    val expiresInSec = expiresAt?.minus(nowSec)
-    Log.w(
-      SHARED_WITH_YOU_TAG,
-      "share grant blocked missing session key " +
-        "contentId=$normalizedContentId owner=$owner grantee=$grantee " +
-        "sessionPresent=${loadedSessionKey != null} validForOwner=$validForOwner " +
-        "ownerMatches=$ownerMatches storedOwner=${storedOwner ?: "null"} " +
-        "keyAuthorizationPresent=$keyAuthorizationPresent expiresAt=${expiresAt ?: -1L} " +
-        "expiresInSec=${expiresInSec ?: Long.MIN_VALUE}",
-    )
-    throw IllegalStateException("Missing valid Tempo session key for this account. Re-authorize session key and try sharing again.")
-  }
 
   val coordinatorAddress = configuredPublishCoordinatorAddress()
   Log.d(
@@ -123,10 +97,10 @@ internal suspend fun ensureUploadedTrackGrantOnChainInternal(
     }
 
     publishSavedForeverTrackForShare(
+      context = context,
       coordinatorAddress = coordinatorAddress,
       ownerAddress = owner,
       track = track,
-      sessionKey = sessionKey,
     )
     publishId =
       resolvePublishIdForTrack(
@@ -141,14 +115,17 @@ internal suspend fun ensureUploadedTrackGrantOnChainInternal(
 
   val grantCallData = encodeCoordinatorGrantAccessCallData(publishId = resolvedPublishId, granteeAddress = grantee)
   val txHash =
-    submitCoordinatorSessionTx(
-    coordinatorAddress = coordinatorAddress,
-    ownerAddress = owner,
-    sessionKey = sessionKey,
-    callData = grantCallData,
-    minimumGasLimit = uploadedTrackGrantGasMin,
-    opLabel = "grant uploaded track access",
-  )
+    submitCoordinatorContractCall(
+      context = context,
+      coordinatorAddress = coordinatorAddress,
+      callData = grantCallData,
+      opLabel = "grant uploaded track access",
+      intentType = "pirate.track.share.grant-access",
+      intentArgs =
+        JSONObject()
+          .put("publishId", resolvedPublishId)
+          .put("granteeAddress", grantee),
+    )
   Log.d(
     SHARED_WITH_YOU_TAG,
     "share grant success contentId=$normalizedContentId publishId=$resolvedPublishId tx=$txHash",
@@ -307,10 +284,10 @@ private fun resolveSharePublishCoverRef(track: MusicTrack): String {
 }
 
 private suspend fun publishSavedForeverTrackForShare(
+  context: Context,
   coordinatorAddress: String,
   ownerAddress: String,
   track: MusicTrack,
-  sessionKey: SessionKeyManager.SessionKey,
 ) {
   val title = track.title.trim()
   val artist = track.artist.trim()
@@ -323,7 +300,7 @@ private suspend fun publishSavedForeverTrackForShare(
     throw IllegalStateException("Track has no pieceCid; save it forever before sharing.")
   }
 
-  val datasetOwner = runCatching { normalizeAddress(track.datasetOwner ?: ownerAddress) }.getOrDefault(ownerAddress)
+  val datasetOwner = runCatching { normalizeChainAddress(track.datasetOwner ?: ownerAddress) }.getOrDefault(ownerAddress)
   val algo = (track.algo ?: ContentCryptoConfig.ALGO_AES_GCM_256).coerceIn(1, 255)
   if (isUnsupportedUploadedTrackAlgo(algo)) {
     throw IllegalStateException(uploadedTrackUnsupportedUploadError())
@@ -346,13 +323,18 @@ private suspend fun publishSavedForeverTrackForShare(
       visibility = uploadedTrackVisPrivate,
       replaceIfActive = false,
     )
-  submitCoordinatorSessionTx(
+  submitCoordinatorContractCall(
+    context = context,
     coordinatorAddress = coordinatorAddress,
-    ownerAddress = ownerAddress,
-    sessionKey = sessionKey,
     callData = callData,
-    minimumGasLimit = uploadedTrackPublishGasMin,
     opLabel = "register uploaded track release",
+    intentType = "pirate.track.share.publish-private",
+    intentArgs =
+      JSONObject()
+        .put("ownerAddress", ownerAddress)
+        .put("title", title)
+        .put("artist", artist)
+        .put("trackId", normalizedMetaTrackIdForShare(track)),
   )
 }
 
@@ -365,7 +347,7 @@ private fun encodeCoordinatorGrantAccessCallData(
       "grantAccess",
       listOf(
         Bytes32(P256Utils.hexToBytes(normalizeBytes32(publishId, "publishId"))),
-        Address(normalizeAddress(granteeAddress)),
+        Address(normalizeChainAddress(granteeAddress)),
       ),
       emptyList(),
     )
@@ -412,88 +394,36 @@ private fun encodeCoordinatorPublishCallData(
   return FunctionEncoder.encode(function)
 }
 
-private suspend fun submitCoordinatorSessionTx(
+private suspend fun submitCoordinatorContractCall(
+  context: Context,
   coordinatorAddress: String,
-  ownerAddress: String,
-  sessionKey: SessionKeyManager.SessionKey,
   callData: String,
-  minimumGasLimit: Long,
   opLabel: String,
+  intentType: String,
+  intentArgs: JSONObject,
 ): String {
-  val chainId = TempoClient.getChainId()
-  if (chainId != TempoClient.CHAIN_ID) {
-    throw IllegalStateException("Wrong chain connected: $chainId (expected ${TempoClient.CHAIN_ID})")
+  val txHash =
+    PrivyRelayClient.submitContractCall(
+      context = context,
+      chainId = PirateChainConfig.STORY_AENEID_CHAIN_ID,
+      to = coordinatorAddress,
+      data = callData,
+      intentType = intentType,
+      intentArgs = intentArgs,
+    )
+  val receipt = awaitPlaylistReceipt(txHash)
+  if (!receipt.isSuccess) {
+    throw IllegalStateException("$opLabel reverted on-chain: ${receipt.txHash}")
   }
-
-  val gasLimit = withBuffer(estimateGas(from = ownerAddress, to = coordinatorAddress, data = callData), minimumGasLimit)
-  var baseFees = withAddressBidFloor(ownerAddress, withRelayMinimumFeeFloor(TempoClient.getSuggestedFees()))
-  var lastUnderpriced: Throwable? = null
-
-  repeat(MAX_UNDERPRICED_RETRIES + 1) { attempt ->
-    val tx =
-      TempoTransaction.UnsignedTx(
-        nonceKeyBytes = EXPIRING_NONCE_KEY,
-        nonce = 0L,
-        validBeforeSec = nowSec() + EXPIRY_WINDOW_SEC,
-        maxPriorityFeePerGas = baseFees.maxPriorityFeePerGas,
-        maxFeePerGas = baseFees.maxFeePerGas,
-        feeMode = TempoTransaction.FeeMode.RELAY_SPONSORED,
-        gasLimit = gasLimit,
-        calls =
-          listOf(
-            TempoTransaction.Call(
-              to = P256Utils.hexToBytes(coordinatorAddress),
-              value = 0,
-              input = P256Utils.hexToBytes(callData),
-            ),
-          ),
-      )
-
-    val sigHash = TempoTransaction.signatureHash(tx)
-    val keychainSig =
-      SessionKeyManager.signWithSessionKey(
-        sessionKey = sessionKey,
-        userAddress = ownerAddress,
-        txHash = sigHash,
-      )
-    val signedTxHex = TempoTransaction.encodeSignedSessionKey(tx, keychainSig)
-
-    val submitted =
-      runCatching {
-        TempoClient.sendSponsoredRawTransaction(
-          signedTxHex = signedTxHex,
-          senderAddress = ownerAddress,
-        )
-      }
-    val txHash = submitted.getOrNull()
-    if (!txHash.isNullOrBlank()) {
-      rememberAddressBidFloor(ownerAddress, baseFees)
-      val receipt = awaitPlaylistReceipt(txHash)
-      if (!receipt.isSuccess) {
-        throw IllegalStateException("$opLabel reverted on-chain: ${receipt.txHash}")
-      }
-      return txHash
-    }
-
-    val error = submitted.exceptionOrNull() ?: IllegalStateException("$opLabel failed")
-    if (!isReplacementUnderpriced(error) || attempt >= MAX_UNDERPRICED_RETRIES) {
-      throw error
-    }
-    lastUnderpriced = error
-    baseFees = withAddressBidFloor(ownerAddress, withRelayMinimumFeeFloor(aggressivelyBumpFees(baseFees)))
-    rememberAddressBidFloor(ownerAddress, baseFees)
-    delay(RETRY_DELAY_MS)
-  }
-
-  throw (lastUnderpriced ?: IllegalStateException("$opLabel failed: replacement transaction underpriced"))
+  return txHash
 }
 
 private fun configuredPublishCoordinatorAddress(): String {
-  val raw = BuildConfig.TEMPO_PUBLISH_COORDINATOR.trim()
+  val raw = BuildConfig.STORY_PUBLISH_COORDINATOR.trim()
   if (raw.isBlank() || raw.equals("0x0000000000000000000000000000000000000000", ignoreCase = true)) {
-    throw IllegalStateException("Tempo publish coordinator is not configured in this build.")
+    throw IllegalStateException("Story publish coordinator is not configured in this build.")
   }
-  return normalizeAddress(raw)
+  return normalizeChainAddress(raw)
 }
 
 private fun normalizedMetaTrackIdForShare(track: MusicTrack): String? {

@@ -2,18 +2,13 @@ package sc.pirate.app.profile
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.fragment.app.FragmentActivity
 import sc.pirate.app.onboarding.steps.LocationResult
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 @Composable
 internal fun ProfileEditLaunchEffects(
-  activity: FragmentActivity,
   ethAddress: String,
-  legacySignerAccount: TempoPasskeyManager.PasskeyAccount?,
   onSetLoading: (Boolean) -> Unit,
   onSetError: (String?) -> Unit,
   onSetDraft: (ContractProfileData) -> Unit,
@@ -32,20 +27,19 @@ internal fun ProfileEditLaunchEffects(
   onSetLocationDirty: (Boolean) -> Unit,
   onSetSchoolName: (String) -> Unit,
   onSetSchoolDirty: (Boolean) -> Unit,
-  onSetSessionKey: (SessionKeyManager.SessionKey?) -> Unit,
 ) {
-  LaunchedEffect(ethAddress, legacySignerAccount?.address, legacySignerAccount?.credentialId) {
+  LaunchedEffect(ethAddress) {
     onSetLoading(true)
     onSetError(null)
     runCatching {
       withContext(Dispatchers.IO) {
         val profile = ProfileContractApi.fetchProfile(ethAddress) ?: ProfileContractApi.emptyProfile()
-        val name = TempoNameRecordsApi.getPrimaryName(ethAddress)
-        val node = name?.let { TempoNameRecordsApi.computeNode(it) }
-        val avatarRecord = node?.let { TempoNameRecordsApi.getTextRecord(it, "avatar") }
-        val coverRecord = node?.let { TempoNameRecordsApi.getTextRecord(it, TempoNameRecordsApi.PROFILE_COVER_RECORD_KEY) }
-        val locationRecord = node?.let { TempoNameRecordsApi.getTextRecord(it, "heaven.location") }
-        val schoolRecord = node?.let { TempoNameRecordsApi.getTextRecord(it, "heaven.school") }
+        val name = PirateNameRecordsApi.getPrimaryName(ethAddress)
+        val node = name?.let { PirateNameRecordsApi.computeNode(it) }
+        val avatarRecord = node?.let { PirateNameRecordsApi.getTextRecord(it, "avatar") }
+        val coverRecord = node?.let { PirateNameRecordsApi.getTextRecord(it, PirateNameRecordsApi.PROFILE_COVER_RECORD_KEY) }
+        val locationRecord = node?.let { PirateNameRecordsApi.getTextRecord(it, "heaven.location") }
+        val schoolRecord = node?.let { PirateNameRecordsApi.getTextRecord(it, "heaven.school") }
         LoadedProfileContext(
           profile = profile,
           primaryName = name,
@@ -90,16 +84,6 @@ internal fun ProfileEditLaunchEffects(
 
         onSetSchoolName(loadedContext.schoolRecord?.trim().orEmpty())
         onSetSchoolDirty(false)
-
-        // Load session key for silent signing.
-        if (legacySignerAccount != null) {
-          val loaded = SessionKeyManager.load(activity)
-          if (SessionKeyManager.isValid(loaded, ownerAddress = legacySignerAccount.address) &&
-            loaded?.keyAuthorization?.isNotEmpty() == true
-          ) {
-            onSetSessionKey(loaded)
-          }
-        }
         onSetLoading(false)
       }
       .onFailure { error ->

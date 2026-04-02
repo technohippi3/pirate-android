@@ -5,7 +5,6 @@ import androidx.compose.runtime.LaunchedEffect
 import sc.pirate.app.fetchPublicProfileReadModel
 import sc.pirate.app.music.OnChainPlaylist
 import sc.pirate.app.music.OnChainPlaylistsApi
-import sc.pirate.app.onboarding.OnboardingRpcHelpers
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -42,16 +41,14 @@ internal fun ProfileScreenLaunchEffects(
   onSetLocationRecord: (String?) -> Unit,
   onSetSchoolRecord: (String?) -> Unit,
 ) {
-  // Fetch follow counts
   LaunchedEffect(ethAddress) {
     withContext(Dispatchers.IO) {
-      val (followers, following) = OnboardingRpcHelpers.getFollowCounts(ethAddress)
-      onSetFollowerCount(followers)
-      onSetFollowingCount(following)
+      val summary = EfpFollowApi.fetchProfileFollowSummary(ethAddress)
+      onSetFollowerCount(summary.followerCount)
+      onSetFollowingCount(summary.followingCount)
     }
   }
 
-  // Fetch follow state for viewer -> profile target
   LaunchedEffect(viewerEthAddress, ethAddress, canFollow) {
     onSetFollowError(null)
     if (!canFollow) {
@@ -63,7 +60,7 @@ internal fun ProfileScreenLaunchEffects(
     }
     onSetFollowStateLoaded(false)
     val remoteFollowing = withContext(Dispatchers.IO) {
-      OnboardingRpcHelpers.getFollowState(viewerEthAddress!!, ethAddress!!)
+      EfpFollowApi.fetchViewerFollowState(viewerEthAddress!!, ethAddress)
     }
     if (pendingFollowTarget == null) {
       onSetServerFollowing(remoteFollowing)
@@ -72,7 +69,6 @@ internal fun ProfileScreenLaunchEffects(
     onSetFollowStateLoaded(true)
   }
 
-  // Fetch scrobbles (retries when scrobbleRetryKey increments)
   LaunchedEffect(ethAddress, scrobbleRetryKey) {
     onSetScrobblesLoading(true)
     onSetScrobblesError(null)
@@ -87,7 +83,6 @@ internal fun ProfileScreenLaunchEffects(
       }
   }
 
-  // Fetch playlists
   LaunchedEffect(ethAddress) {
     onSetPlaylistsLoading(true)
     onSetPlaylistsError(null)
@@ -102,7 +97,6 @@ internal fun ProfileScreenLaunchEffects(
       }
   }
 
-  // Fetch published songs from content entries for this profile owner
   LaunchedEffect(ethAddress) {
     onSetPublishedSongsLoading(true)
     onSetPublishedSongsError(null)
@@ -117,7 +111,6 @@ internal fun ProfileScreenLaunchEffects(
       }
   }
 
-  // Fetch full contract profile for About/Edit
   LaunchedEffect(ethAddress, contractRetryKey, usePublicProfileReadModel) {
     onSetContractLoading(true)
     onSetContractError(null)
@@ -147,7 +140,6 @@ internal fun ProfileScreenLaunchEffects(
     }
   }
 
-  // Fetch user-friendly name records (location/school) when a primary name exists.
   LaunchedEffect(primaryName, usePublicProfileReadModel) {
     if (usePublicProfileReadModel) return@LaunchedEffect
     if (primaryName.isNullOrBlank()) {
@@ -156,11 +148,11 @@ internal fun ProfileScreenLaunchEffects(
       onSetSchoolRecord(null)
       return@LaunchedEffect
     }
-    val node = TempoNameRecordsApi.computeNode(primaryName)
+    val node = PirateNameRecordsApi.computeNode(primaryName)
     withContext(Dispatchers.IO) {
-      onSetCoverRecord(TempoNameRecordsApi.getTextRecord(node, TempoNameRecordsApi.PROFILE_COVER_RECORD_KEY))
-      onSetLocationRecord(TempoNameRecordsApi.getTextRecord(node, "heaven.location"))
-      onSetSchoolRecord(TempoNameRecordsApi.getTextRecord(node, "heaven.school"))
+      onSetCoverRecord(PirateNameRecordsApi.getTextRecord(node, PirateNameRecordsApi.PROFILE_COVER_RECORD_KEY))
+      onSetLocationRecord(PirateNameRecordsApi.getTextRecord(node, "heaven.location"))
+      onSetSchoolRecord(PirateNameRecordsApi.getTextRecord(node, "heaven.school"))
     }
   }
 }

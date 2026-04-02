@@ -5,6 +5,7 @@ import android.util.Log
 import io.privy.auth.PrivyUser
 import io.privy.auth.generateAuthorizationSignature
 import io.privy.wallet.ethereum.EmbeddedEthereumWallet
+import io.privy.wallet.ethereum.EthereumRpcRequest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
@@ -19,10 +20,10 @@ import org.json.JSONObject
 import sc.pirate.app.BuildConfig
 import sc.pirate.app.PirateChainConfig
 import sc.pirate.app.profile.BaseNameRegistrationQuote
+import sc.pirate.app.profile.BaseProfileContractCodec
 import sc.pirate.app.profile.ContractProfileData
 import sc.pirate.app.profile.ProfileContractApi
-import sc.pirate.app.profile.TempoNameRecordsApi
-import sc.pirate.app.profile.TempoProfileContractApi
+import sc.pirate.app.profile.PirateNameRecordsApi
 import sc.pirate.app.util.HttpClients
 import java.util.UUID
 import io.privy.wallet.walletApi.WalletApiPayload
@@ -173,7 +174,7 @@ internal object PrivyRelayClient {
             "transaction",
             JSONObject()
               .put("to", PirateChainConfig.BASE_SEPOLIA_PROFILE_V2)
-              .put("data", TempoProfileContractApi.encodeUpsertProfileCall(profileInput)),
+              .put("data", BaseProfileContractCodec.encodeUpsertProfileCall(profileInput)),
           )
       submitRelay(session = session, payload = payload)
     }
@@ -203,7 +204,7 @@ internal object PrivyRelayClient {
         values += trimmedAvatar
       }
       val fullName = "$normalizedLabel.$normalizedTld"
-      val node = TempoNameRecordsApi.computeNode(fullName)
+      val node = PirateNameRecordsApi.computeNode(fullName)
 
       val session = resolveSession(context)
       val payload =
@@ -231,9 +232,122 @@ internal object PrivyRelayClient {
             "transaction",
             JSONObject()
               .put("to", PirateChainConfig.BASE_SEPOLIA_RECORDS_V1)
-              .put("data", TempoNameRecordsApi.encodeSetRecordsCallForRelay(node, keys, values)),
+              .put("data", PirateNameRecordsApi.encodeSetRecordsCallForRelay(node, keys, values)),
           )
       submitRelay(session = session, payload = payload)
+    }
+
+  suspend fun submitContractCall(
+    context: Context,
+    chainId: Long,
+    to: String,
+    data: String,
+    value: String? = null,
+    intentType: String,
+    intentArgs: JSONObject? = null,
+  ): String =
+    withContext(Dispatchers.IO) {
+      val session = resolveSession(context)
+      val normalizedTo = to.trim()
+      val normalizedData = data.trim()
+      check(normalizedTo.startsWith("0x") && normalizedTo.length == 42) {
+        "Invalid contract target."
+      }
+      check(normalizedData.startsWith("0x") && normalizedData.length > 2) {
+        "Invalid contract calldata."
+      }
+
+      val payload =
+        JSONObject()
+          .put("chainId", chainId)
+          .put("walletAddress", session.wallet.address)
+          .put("privyWalletId", session.wallet.id)
+          .put(
+            "intent",
+            JSONObject().apply {
+              put("type", intentType.trim())
+              intentArgs?.let { args ->
+                val keys = args.keys()
+                while (keys.hasNext()) {
+                  val key = keys.next()
+                  put(key, args.get(key))
+                }
+              }
+            },
+          )
+          .put(
+            "transaction",
+            JSONObject()
+              .put("to", normalizedTo)
+              .put("data", normalizedData)
+              .apply {
+                value?.trim()?.takeIf { it.isNotEmpty() }?.let { put("value", it) }
+              },
+          )
+      submitRelay(session = session, payload = payload)
+    }
+
+  suspend fun signPersonalMessage(
+    context: Context,
+    expectedWalletAddress: String,
+    message: String,
+  ): String =
+    withContext(Dispatchers.IO) {
+      val session = resolveSession(context)
+      requireWalletAddressMatches(session.wallet, expectedWalletAddress)
+      val response =
+        session.wallet.provider.request(
+          request = EthereumRpcRequest.personalSign(message, session.wallet.address),
+        ).getOrThrow()
+      response.data.trim().ifBlank {
+        throw IllegalStateException("Privy wallet returned an empty personal_sign response.")
+      }
+    }
+
+  suspend fun signTypedDataV4(
+    context: Context,
+    expectedWalletAddress: String,
+    typedData: JSONObject,
+  ): String =
+    withContext(Dispatchers.IO) {
+      val session = resolveSession(context)
+      requireWalletAddressMatches(session.wallet, expectedWalletAddress)
+      val response =
+        session.wallet.provider.request(
+          request =
+            EthereumRpcRequest(
+              method = "eth_signTypedData_v4",
+              params =
+                listOf(
+                  session.wallet.address,
+                  typedData.toString(),
+                ),
+            ),
+        ).getOrThrow()
+      response.data.trim().ifBlank {
+        throw IllegalStateException("Privy wallet returned an empty eth_signTypedData_v4 response.")
+      }
+    }
+
+  suspend fun signTransaction(
+    context: Context,
+    expectedWalletAddress: String,
+    transaction: JSONObject,
+  ): String =
+    withContext(Dispatchers.IO) {
+      val session = resolveSession(context)
+      requireWalletAddressMatches(session.wallet, expectedWalletAddress)
+      val response =
+        session.wallet.provider.request(
+          request =
+            EthereumRpcRequest(
+              method = "eth_signTransaction",
+              params = listOf(transaction.toString()),
+            ),
+        ).getOrThrow()
+      response.data.trim().ifBlank {
+        throw IllegalStateException("Privy wallet returned an empty eth_signTransaction response.")
+      }
     }
 
   private suspend fun resolveSession(context: Context): PrivyRelaySession {
@@ -264,6 +378,17 @@ internal object PrivyRelayClient {
       user = user,
       wallet = wallet,
     )
+  }
+
+  private fun requireWalletAddressMatches(
+    wallet: EmbeddedEthereumWallet,
+    expectedWalletAddress: String,
+  ) {
+    val normalizedExpected = expectedWalletAddress.trim().lowercase()
+    val normalizedWallet = wallet.address.trim().lowercase()
+    check(normalizedExpected.isNotBlank() && normalizedWallet == normalizedExpected) {
+      "Privy wallet does not match the active owner address."
+    }
   }
 
   private fun mapGender(gender: String): Int {

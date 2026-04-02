@@ -4,14 +4,10 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.media.MediaMetadataRetriever
 import android.net.Uri
-import androidx.fragment.app.FragmentActivity
 import sc.pirate.app.BuildConfig
+import sc.pirate.app.PirateChainConfig
 import sc.pirate.app.music.SongPublishService
-import sc.pirate.app.tempo.P256Utils
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoClient
-import sc.pirate.app.tempo.TempoPasskeyManager
-import sc.pirate.app.tempo.TempoTransaction
+import sc.pirate.app.crypto.P256Utils
 import java.io.ByteArrayOutputStream
 import java.io.File
 import java.io.InputStream
@@ -51,7 +47,7 @@ internal object PostTxInternals {
   private val client = OkHttpClient()
 
   fun feedContractOrNull(): String? {
-    val primary = BuildConfig.TEMPO_FEED_V2.trim()
+    val primary = PirateChainConfig.STORY_FEED_V2.trim()
     if (ADDRESS_REGEX.matches(primary)) {
       return "0x${primary.removePrefix("0x").removePrefix("0X")}"
     }
@@ -107,7 +103,7 @@ internal object PostTxInternals {
 
     val req =
       Request.Builder()
-        .url(TempoClient.RPC_URL)
+        .url(PirateChainConfig.STORY_AENEID_RPC_URL)
         .post(payload.toString().toRequestBody(jsonType))
         .build()
 
@@ -118,59 +114,6 @@ internal object PostTxInternals {
       if (error != null) throw IllegalStateException(error.optString("message", error.toString()))
       val hex = body.optString("result", "0x0").removePrefix("0x").ifBlank { "0" }
       return hex.toLongOrNull(16) ?: 0L
-    }
-  }
-
-  fun buildTx(
-    to: String,
-    callData: String,
-    nonce: Long,
-    gasLimit: Long,
-    fees: TempoClient.Eip1559Fees,
-  ): TempoTransaction.UnsignedTx {
-    return TempoTransaction.UnsignedTx(
-      nonce = nonce,
-      maxPriorityFeePerGas = fees.maxPriorityFeePerGas,
-      maxFeePerGas = fees.maxFeePerGas,
-      feeMode = TempoTransaction.FeeMode.RELAY_SPONSORED,
-      gasLimit = gasLimit,
-      calls = listOf(
-        TempoTransaction.Call(
-          to = P256Utils.hexToBytes(to),
-          value = 0,
-          input = P256Utils.hexToBytes(callData),
-        ),
-      ),
-    )
-  }
-
-  suspend fun signTx(
-    activity: FragmentActivity,
-    account: TempoPasskeyManager.PasskeyAccount,
-    rpId: String,
-    tx: TempoTransaction.UnsignedTx,
-    sessionKey: SessionKeyManager.SessionKey?,
-  ): String {
-    val hash = TempoTransaction.signatureHash(tx)
-    val usableSession = sessionKey?.takeIf {
-      SessionKeyManager.isValid(it, ownerAddress = account.address) &&
-        it.keyAuthorization?.isNotEmpty() == true
-    }
-    return if (usableSession != null) {
-      val keychainSig = SessionKeyManager.signWithSessionKey(
-        sessionKey = usableSession,
-        userAddress = account.address,
-        txHash = hash,
-      )
-      TempoTransaction.encodeSignedSessionKey(tx, keychainSig)
-    } else {
-      val assertion = TempoPasskeyManager.sign(
-        activity = activity,
-        challenge = hash,
-        account = account,
-        rpId = rpId,
-      )
-      TempoTransaction.encodeSignedWebAuthn(tx, assertion)
     }
   }
 
@@ -247,7 +190,7 @@ internal object PostTxInternals {
 
     val req =
       Request.Builder()
-        .url(TempoClient.RPC_URL)
+        .url(PirateChainConfig.STORY_AENEID_RPC_URL)
         .post(payload.toString().toRequestBody(jsonType))
         .build()
 
@@ -600,10 +543,47 @@ internal object PostTxInternals {
     }
   }
 
+  data class PostTransactionReceipt(
+    val txHash: String,
+    val statusHex: String,
+    val logs: JSONArray,
+  ) {
+    val isSuccess: Boolean
+      get() = statusHex.equals("0x1", ignoreCase = true)
+  }
+
+  fun awaitPostReceipt(txHash: String): PostTransactionReceipt {
+    val deadlineMs = System.currentTimeMillis() + 45_000L
+    while (System.currentTimeMillis() < deadlineMs) {
+      fetchPostReceiptOrNull(txHash)?.let { return it }
+      Thread.sleep(1_500L)
+    }
+    throw IllegalStateException("Post tx not confirmed before timeout: $txHash")
+  }
+
   fun extractPostIdFromReceipt(
     txHash: String,
     feedAddress: String,
   ): String? {
+    val receipt = fetchPostReceiptOrNull(txHash) ?: return null
+    val logs = receipt.logs
+    val targetAddress = feedAddress.lowercase(Locale.US)
+    val targetTopic = POST_CREATED_TOPIC.lowercase(Locale.US)
+    for (index in 0 until logs.length()) {
+      val row = logs.optJSONObject(index) ?: continue
+      val address = row.optString("address", "").trim().lowercase(Locale.US)
+      if (address != targetAddress) continue
+      val topics = row.optJSONArray("topics") ?: continue
+      val topic0 = topics.optString(0, "").trim().lowercase(Locale.US)
+      if (topic0 != targetTopic) continue
+      val topic1 = topics.optString(1, "").trim()
+      if (topic1.isBlank()) continue
+      return runCatching { normalizeBytes32(topic1, "postId") }.getOrNull()
+    }
+    return null
+  }
+
+  private fun fetchPostReceiptOrNull(txHash: String): PostTransactionReceipt? {
     val payload =
       JSONObject()
         .put("jsonrpc", "2.0")
@@ -612,7 +592,7 @@ internal object PostTxInternals {
         .put("params", JSONArray().put(txHash))
     val req =
       Request.Builder()
-        .url(TempoClient.RPC_URL)
+        .url(PirateChainConfig.STORY_AENEID_RPC_URL)
         .post(payload.toString().toRequestBody(jsonType))
         .build()
 
@@ -620,21 +600,11 @@ internal object PostTxInternals {
       if (!response.isSuccessful) return null
       val body = JSONObject(response.body?.string().orEmpty())
       val receipt = body.optJSONObject("result") ?: return null
-      val logs = receipt.optJSONArray("logs") ?: return null
-      val targetAddress = feedAddress.lowercase(Locale.US)
-      val targetTopic = POST_CREATED_TOPIC.lowercase(Locale.US)
-      for (index in 0 until logs.length()) {
-        val row = logs.optJSONObject(index) ?: continue
-        val address = row.optString("address", "").trim().lowercase(Locale.US)
-        if (address != targetAddress) continue
-        val topics = row.optJSONArray("topics") ?: continue
-        val topic0 = topics.optString(0, "").trim().lowercase(Locale.US)
-        if (topic0 != targetTopic) continue
-        val topic1 = topics.optString(1, "").trim()
-        if (topic1.isBlank()) continue
-        return runCatching { normalizeBytes32(topic1, "postId") }.getOrNull()
-      }
-      return null
+      return PostTransactionReceipt(
+        txHash = receipt.optString("transactionHash", txHash),
+        statusHex = receipt.optString("status", "0x0"),
+        logs = receipt.optJSONArray("logs") ?: JSONArray(),
+      )
     }
   }
 }

@@ -3,9 +3,6 @@ package sc.pirate.app.music
 import android.content.Context
 import android.net.Uri
 import sc.pirate.app.arweave.ArweaveUploadApi
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
-import sc.pirate.app.tempo.TempoSessionKeyApi
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 import kotlinx.coroutines.Dispatchers
@@ -75,49 +72,12 @@ private fun readStreamWithLimit(
   return out.toByteArray()
 }
 
-internal suspend fun resolvePlaylistMutationSessionKey(
-  context: Context,
-  hostActivity: androidx.fragment.app.FragmentActivity?,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
-  owner: String,
-  failureMessage: String,
-  onShowMessage: (String) -> Unit,
-): SessionKeyManager.SessionKey? {
-  val loaded =
-    SessionKeyManager.load(context)?.takeIf {
-      SessionKeyManager.isValid(it, ownerAddress = owner) &&
-        it.keyAuthorization?.isNotEmpty() == true
-    }
-  if (loaded != null) return loaded
-
-  val activity = hostActivity
-  val account = tempoAccount
-  if (activity == null || account == null) {
-    onShowMessage(failureMessage)
-    return null
-  }
-  onShowMessage("Authorizing session key...")
-  val auth = TempoSessionKeyApi.authorizeSessionKey(activity = activity, account = account)
-  val authorized =
-    auth.sessionKey?.takeIf {
-      auth.success &&
-        SessionKeyManager.isValid(it, ownerAddress = owner) &&
-        it.keyAuthorization?.isNotEmpty() == true
-    }
-  if (authorized != null) return authorized
-
-  onShowMessage(auth.error ?: failureMessage)
-  return null
-}
-
 internal suspend fun changePlaylistCoverWithUi(
   context: Context,
-  hostActivity: androidx.fragment.app.FragmentActivity?,
   playlist: PlaylistDisplayItem,
   coverUri: Uri,
   ownerEthAddress: String?,
   isAuthenticated: Boolean,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
   onChainPlaylists: List<OnChainPlaylist>,
   selectedPlaylistId: String?,
   selectedPlaylist: PlaylistDisplayItem?,
@@ -132,20 +92,10 @@ internal suspend fun changePlaylistCoverWithUi(
   }
 
   val owner = ownerEthAddress?.trim()?.lowercase().orEmpty()
-  if (!isAuthenticated || owner.isBlank() || tempoAccount == null) {
+  if (!isAuthenticated || owner.isBlank()) {
     onShowMessage("Sign in to update playlist cover")
     return false
   }
-
-  val sessionKey =
-    resolvePlaylistMutationSessionKey(
-      context = context,
-      hostActivity = hostActivity,
-      tempoAccount = tempoAccount,
-      owner = owner,
-      failureMessage = "Session expired. Sign in again to update playlist cover.",
-      onShowMessage = onShowMessage,
-    ) ?: return false
 
   val payload =
     runCatching {
@@ -175,9 +125,8 @@ internal suspend fun changePlaylistCoverWithUi(
       ?.visibility
       ?: 0
   val result =
-    TempoPlaylistApi.updateMeta(
-      account = tempoAccount,
-      sessionKey = sessionKey,
+    PiratePlaylistApi.updateMeta(
+      context = context,
       playlistId = playlistId,
       name = playlist.name,
       coverCid = uploaded.arRef,
@@ -211,11 +160,9 @@ internal suspend fun changePlaylistCoverWithUi(
 
 internal suspend fun deletePlaylistWithUi(
   context: Context,
-  hostActivity: androidx.fragment.app.FragmentActivity?,
   playlist: PlaylistDisplayItem,
   ownerEthAddress: String?,
   isAuthenticated: Boolean,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
   onChainPlaylists: List<OnChainPlaylist>,
   selectedPlaylistId: String?,
   onSetOnChainPlaylists: (List<OnChainPlaylist>) -> Unit,
@@ -229,25 +176,14 @@ internal suspend fun deletePlaylistWithUi(
   }
 
   val owner = ownerEthAddress?.trim()?.lowercase().orEmpty()
-  if (!isAuthenticated || owner.isBlank() || tempoAccount == null) {
+  if (!isAuthenticated || owner.isBlank()) {
     onShowMessage("Sign in to delete playlists")
     return false
   }
 
-  val sessionKey =
-    resolvePlaylistMutationSessionKey(
-      context = context,
-      hostActivity = hostActivity,
-      tempoAccount = tempoAccount,
-      owner = owner,
-      failureMessage = "Session expired. Sign in again to delete playlists.",
-      onShowMessage = onShowMessage,
-    ) ?: return false
-
   val result =
-    TempoPlaylistApi.deletePlaylist(
-      account = tempoAccount,
-      sessionKey = sessionKey,
+    PiratePlaylistApi.deletePlaylist(
+      context = context,
       playlistId = playlistId,
     )
   if (!result.success) {

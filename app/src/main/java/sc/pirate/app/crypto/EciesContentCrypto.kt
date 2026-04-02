@@ -1,4 +1,4 @@
-package sc.pirate.app.tempo
+package sc.pirate.app.crypto
 
 import java.security.KeyFactory
 import java.security.KeyPairGenerator

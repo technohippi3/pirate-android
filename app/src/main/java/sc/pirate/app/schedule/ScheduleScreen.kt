@@ -5,9 +5,6 @@ import com.adamglin.phosphoricons.Regular
 import com.adamglin.phosphoricons.regular.*
 
 import android.Manifest
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -60,9 +57,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import sc.pirate.app.theme.PiratePalette
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
-import sc.pirate.app.tempo.TempoSessionKeyApi
 import sc.pirate.app.ui.PirateMobileHeader
 import sc.pirate.app.util.shortAddress
 import java.text.SimpleDateFormat
@@ -123,7 +117,6 @@ internal data class SlotRow(
 fun ScheduleScreen(
   isAuthenticated: Boolean,
   userAddress: String?,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
   onOpenDrawer: () -> Unit,
   onOpenAvailability: () -> Unit,
   onJoinBooking: (Long) -> Unit,
@@ -146,7 +139,7 @@ fun ScheduleScreen(
     bookingsLoading = true
     try {
       val rows = withContext(Dispatchers.IO) {
-        TempoSessionEscrowApi.fetchUpcomingUserBookings(userAddress, maxResults = 20)
+        SessionEscrowApi.fetchUpcomingUserBookings(userAddress, maxResults = 20)
       }
       upcomingBookings = rows.map { row ->
         BookingRow(
@@ -241,33 +234,22 @@ fun ScheduleScreen(
               return@cancel
             }
 
-            if (!isAuthenticated || userAddress.isNullOrBlank() || tempoAccount == null) {
-              onShowMessage("Sign in with Tempo to cancel bookings.")
+            if (!isAuthenticated || userAddress.isNullOrBlank()) {
+              onShowMessage("Sign in to cancel bookings.")
               return@cancel
             }
 
             pendingCancelBookingId = bookingId
             scope.launch {
-              val sessionKey = ensureScheduleSessionKey(
+              val result = SessionEscrowApi.cancelBooking(
                 context = context,
-                account = tempoAccount,
-                onShowMessage = onShowMessage,
-              )
-              if (sessionKey == null) {
-                pendingCancelBookingId = null
-                return@launch
-              }
-
-              val result = TempoSessionEscrowApi.cancelBooking(
-                userAddress = tempoAccount.address,
-                sessionKey = sessionKey,
+                userAddress = userAddress,
                 bookingId = chainBookingId,
                 asHost = booking.isHost,
               )
 
               if (result.success) {
-                val fundingPath = if (result.usedSelfPayFallback) "self-pay fallback" else "sponsored"
-                onShowMessage("Cancel submitted ($fundingPath): ${shortAddress(result.txHash ?: "", minLengthToShorten = 10)}")
+                onShowMessage("Cancel submitted: ${shortAddress(result.txHash ?: "", minLengthToShorten = 10)}")
                 refreshBookings()
               } else {
                 onShowMessage("Cancel failed: ${result.error ?: "unknown error"}")

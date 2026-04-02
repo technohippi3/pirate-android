@@ -2,10 +2,9 @@ package sc.pirate.app.home
 
 import android.content.Context
 import android.util.Log
-import sc.pirate.app.BuildConfig
-import sc.pirate.app.tempo.P256Utils
-import sc.pirate.app.tempo.TempoClient
-import sc.pirate.app.util.tempoFeedSubgraphUrls
+import sc.pirate.app.PirateChainConfig
+import sc.pirate.app.crypto.P256Utils
+import sc.pirate.app.util.storyFeedSubgraphUrls
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -29,7 +28,7 @@ object FeedRepository {
   private const val TAG = "FeedRepository"
   private const val POST_CREATED_TOPIC =
     "0xf33ccb9d20522e9ebf5a1d6b9caba40fb396e20cd76a5e4b4bff494bdea84b9f"
-  private const val FEED_START_BLOCK = 6_142_696L
+  private const val FEED_START_BLOCK = 16_169_211L
   // RPC allows a max inclusive range of 100_000 blocks; use 99_999 delta from latest.
   private const val FEED_FALLBACK_BLOCK_WINDOW = 99_999L
   private const val ZERO_ADDRESS = "0x0000000000000000000000000000000000000000"
@@ -75,7 +74,7 @@ object FeedRepository {
     var sawSuccessfulEmpty = false
     var lastError: Throwable? = null
 
-    for (subgraphUrl in tempoFeedSubgraphUrls()) {
+    for (subgraphUrl in storyFeedSubgraphUrls()) {
       try {
         val corePosts = fetchCorePostsFromSubgraph(subgraphUrl = subgraphUrl, limit = safeLimit, cursor = cursor)
         if (corePosts.isEmpty()) {
@@ -118,7 +117,7 @@ object FeedRepository {
     if (normalizedPostIds.isEmpty()) return@withContext emptySet()
     var lastError: Throwable? = null
 
-    for (subgraphUrl in tempoFeedSubgraphUrls()) {
+    for (subgraphUrl in storyFeedSubgraphUrls()) {
       try {
         val likedIds = fetchViewerLikedPostIdsFromSubgraph(
           subgraphUrl = subgraphUrl,
@@ -289,7 +288,7 @@ object FeedRepository {
     cursor: FeedPageCursor?,
   ): List<FeedPostCore> {
     val safeLimit = limit.coerceIn(1, 100)
-    val feedAddress = normalizeAddress(BuildConfig.TEMPO_FEED_V2)
+    val feedAddress = normalizeAddress(PirateChainConfig.STORY_FEED_V2)
     if (!ADDRESS_REGEX.matches(feedAddress)) return emptyList()
 
     val latestBlock = rpcBlockNumber()
@@ -431,7 +430,7 @@ object FeedRepository {
         .put("method", method)
         .put("params", params)
     val body = payload.toString().toRequestBody(jsonMediaType)
-    val req = Request.Builder().url(TempoClient.RPC_URL).post(body).build()
+    val req = Request.Builder().url(PirateChainConfig.STORY_AENEID_RPC_URL).post(body).build()
     return client.newCall(req).execute().use { res ->
       if (!res.isSuccessful) throw IllegalStateException("RPC query failed: ${res.code}")
       val raw = res.body?.string().orEmpty()

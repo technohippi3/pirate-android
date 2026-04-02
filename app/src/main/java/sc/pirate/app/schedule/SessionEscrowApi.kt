@@ -1,12 +1,13 @@
 package sc.pirate.app.schedule
 
-import sc.pirate.app.tempo.SessionKeyManager
+import android.content.Context
 import java.math.BigInteger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.withContext
+import org.json.JSONObject
 
 internal enum class EscrowBookingStatus(val code: Int) {
   None(0),
@@ -75,24 +76,12 @@ data class SlotPlanEntry(
 data class EscrowTxResult(
   val success: Boolean,
   val txHash: String? = null,
-  val usedSelfPayFallback: Boolean = false,
   val error: String? = null,
 )
 
-object TempoSessionEscrowApi {
-  const val SUPPORTS_BATCH_SLOT_CREATE = false
-  const val SUPPORTS_BATCH_SLOT_CANCEL = false
-
+object SessionEscrowApi {
   private const val MAX_BOOKING_SCAN = 300
   private const val MAX_SLOT_SCAN = 400
-
-  private const val GAS_LIMIT_SET_BASE_PRICE = 180_000L
-  private const val GAS_LIMIT_CREATE_SLOT = 260_000L
-  private const val GAS_LIMIT_CREATE_SLOTS_BATCH = 1_400_000L
-  private const val GAS_LIMIT_CANCEL_SLOT = 180_000L
-  private const val GAS_LIMIT_CANCEL_SLOTS_BATCH = 550_000L
-  private const val GAS_LIMIT_CANCEL_BOOKING = 220_000L
-  private const val SLOT_BATCH_MAX = 64
 
   suspend fun fetchUpcomingUserBookings(
     userAddress: String,
@@ -206,8 +195,8 @@ object TempoSessionEscrowApi {
   }
 
   suspend fun setHostBasePrice(
+    context: Context,
     userAddress: String,
-    sessionKey: SessionKeyManager.SessionKey,
     priceUsd: String,
   ): EscrowTxResult {
     val priceRaw = parseUsdToRaw(priceUsd)
@@ -218,49 +207,18 @@ object TempoSessionEscrowApi {
       uintArgs = listOf(priceRaw),
     )
     return submitEscrowWriteTx(
+      context = context,
       userAddress = userAddress,
-      sessionKey = sessionKey,
       callData = callData,
-      minimumGasLimit = GAS_LIMIT_SET_BASE_PRICE,
+      intentType = "pirate.schedule.set_base_price",
+      intentArgs = JSONObject().put("priceUsd", priceUsd),
       opLabel = "set base price",
     )
   }
 
-  suspend fun createSlot(
-    userAddress: String,
-    sessionKey: SessionKeyManager.SessionKey,
-    startTimeSec: Long,
-    durationMins: Int,
-    graceMins: Int,
-    minOverlapMins: Int,
-    cancelCutoffMins: Int,
-  ): EscrowTxResult {
-    if (durationMins <= 0) return EscrowTxResult(success = false, error = "Duration must be positive.")
-    if (startTimeSec <= nowSec()) return EscrowTxResult(success = false, error = "Slot start time must be in the future.")
-
-    val callData = encodeFunctionCall(
-      signature = "createSlot(uint48,uint32,uint32,uint32,uint32)",
-      uintArgs = listOf(
-        BigInteger.valueOf(startTimeSec),
-        BigInteger.valueOf(durationMins.toLong()),
-        BigInteger.valueOf(graceMins.toLong()),
-        BigInteger.valueOf(minOverlapMins.toLong()),
-        BigInteger.valueOf(cancelCutoffMins.toLong()),
-      ),
-    )
-
-    return submitEscrowWriteTx(
-      userAddress = userAddress,
-      sessionKey = sessionKey,
-      callData = callData,
-      minimumGasLimit = GAS_LIMIT_CREATE_SLOT,
-      opLabel = "create slot",
-    )
-  }
-
   suspend fun createSlotWithPrice(
+    context: Context,
     userAddress: String,
-    sessionKey: SessionKeyManager.SessionKey,
     startTimeSec: Long,
     durationMins: Int,
     graceMins: Int,
@@ -286,61 +244,21 @@ object TempoSessionEscrowApi {
     )
 
     return submitEscrowWriteTx(
+      context = context,
       userAddress = userAddress,
-      sessionKey = sessionKey,
       callData = callData,
-      minimumGasLimit = GAS_LIMIT_CREATE_SLOT,
+      intentType = "pirate.schedule.create_slot",
+      intentArgs = JSONObject()
+        .put("startTimeSec", startTimeSec)
+        .put("durationMins", durationMins)
+        .put("priceUsd", priceUsd),
       opLabel = "create slot with price",
     )
   }
 
-  suspend fun createSlotsWithPrices(
-    userAddress: String,
-    sessionKey: SessionKeyManager.SessionKey,
-    entries: List<SlotPlanEntry>,
-    durationMins: Int,
-    graceMins: Int,
-    minOverlapMins: Int,
-    cancelCutoffMins: Int,
-  ): EscrowTxResult {
-    if (!SUPPORTS_BATCH_SLOT_CREATE) {
-      return EscrowTxResult(success = false, error = "Batch slot creation is unavailable on current escrow.")
-    }
-    if (entries.isEmpty()) return EscrowTxResult(success = false, error = "No slots selected.")
-    if (entries.size > SLOT_BATCH_MAX) return EscrowTxResult(success = false, error = "Too many slots in one batch.")
-    if (durationMins <= 0) return EscrowTxResult(success = false, error = "Duration must be positive.")
-
-    val now = nowSec()
-    val inputs =
-      entries.map { entry ->
-        if (entry.startTimeSec <= now) {
-          return EscrowTxResult(success = false, error = "All slot times must be in the future.")
-        }
-        val rawPrice = parseUsdToRaw(entry.priceUsd)
-          ?: return EscrowTxResult(success = false, error = "All prices must be valid positive values.")
-        EscrowSlotInputCall(
-          startTimeSec = entry.startTimeSec,
-          durationMins = durationMins,
-          graceMins = graceMins,
-          minOverlapMins = minOverlapMins,
-          cancelCutoffMins = cancelCutoffMins,
-          priceRaw = rawPrice,
-        )
-      }
-
-    val callData = encodeCreateSlotsWithPricesCall(inputs)
-    return submitEscrowWriteTx(
-      userAddress = userAddress,
-      sessionKey = sessionKey,
-      callData = callData,
-      minimumGasLimit = GAS_LIMIT_CREATE_SLOTS_BATCH,
-      opLabel = "create slots batch",
-    )
-  }
-
   suspend fun cancelSlot(
+    context: Context,
     userAddress: String,
-    sessionKey: SessionKeyManager.SessionKey,
     slotId: Long,
   ): EscrowTxResult {
     if (slotId <= 0L) return EscrowTxResult(success = false, error = "Invalid slot id.")
@@ -351,43 +269,18 @@ object TempoSessionEscrowApi {
     )
 
     return submitEscrowWriteTx(
+      context = context,
       userAddress = userAddress,
-      sessionKey = sessionKey,
       callData = callData,
-      minimumGasLimit = GAS_LIMIT_CANCEL_SLOT,
+      intentType = "pirate.schedule.cancel_slot",
+      intentArgs = JSONObject().put("slotId", slotId),
       opLabel = "cancel slot",
     )
   }
 
-  suspend fun cancelSlotsBestEffort(
-    userAddress: String,
-    sessionKey: SessionKeyManager.SessionKey,
-    slotIds: List<Long>,
-  ): EscrowTxResult {
-    if (!SUPPORTS_BATCH_SLOT_CANCEL) {
-      return EscrowTxResult(success = false, error = "Batch slot cancellation is unavailable on current escrow.")
-    }
-    if (slotIds.isEmpty()) return EscrowTxResult(success = false, error = "No slots selected.")
-    if (slotIds.size > SLOT_BATCH_MAX) return EscrowTxResult(success = false, error = "Too many slots in one batch.")
-    if (slotIds.any { it <= 0L }) return EscrowTxResult(success = false, error = "Invalid slot id.")
-
-    val callData = encodeUintArrayFunctionCall(
-      signature = "cancelSlotsBestEffort(uint256[])",
-      values = slotIds.map { BigInteger.valueOf(it) },
-    )
-
-    return submitEscrowWriteTx(
-      userAddress = userAddress,
-      sessionKey = sessionKey,
-      callData = callData,
-      minimumGasLimit = GAS_LIMIT_CANCEL_SLOTS_BATCH,
-      opLabel = "cancel slots batch",
-    )
-  }
-
   suspend fun cancelBooking(
+    context: Context,
     userAddress: String,
-    sessionKey: SessionKeyManager.SessionKey,
     bookingId: Long,
     asHost: Boolean,
   ): EscrowTxResult {
@@ -400,10 +293,11 @@ object TempoSessionEscrowApi {
     )
 
     return submitEscrowWriteTx(
+      context = context,
       userAddress = userAddress,
-      sessionKey = sessionKey,
       callData = callData,
-      minimumGasLimit = GAS_LIMIT_CANCEL_BOOKING,
+      intentType = "pirate.schedule.cancel_booking",
+      intentArgs = JSONObject().put("bookingId", bookingId).put("role", if (asHost) "host" else "guest"),
       opLabel = "cancel booking",
     )
   }

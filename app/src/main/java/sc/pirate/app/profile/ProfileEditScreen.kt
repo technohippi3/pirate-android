@@ -35,9 +35,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import sc.pirate.app.onboarding.steps.LocationResult
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoSessionKeyApi
-import sc.pirate.app.tempo.TempoPasskeyManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -47,7 +44,6 @@ import kotlinx.coroutines.withContext
 fun ProfileEditScreen(
   activity: androidx.fragment.app.FragmentActivity,
   ethAddress: String,
-  legacySignerAccount: TempoPasskeyManager.PasskeyAccount?,
   onBack: () -> Unit,
   onSaved: () -> Unit,
 ) {
@@ -79,8 +75,6 @@ fun ProfileEditScreen(
   var schoolName by remember { mutableStateOf("") }
   var schoolDirty by remember { mutableStateOf(false) }
 
-  var sessionKey by remember { mutableStateOf<SessionKeyManager.SessionKey?>(null) }
-
   val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
     uri ?: return@rememberLauncherForActivityResult
     runCatching { processAvatarImage(appContext, uri) }
@@ -107,9 +101,7 @@ fun ProfileEditScreen(
   }
 
   ProfileEditLaunchEffects(
-    activity = activity,
     ethAddress = ethAddress,
-    legacySignerAccount = legacySignerAccount,
     onSetLoading = { loading = it },
     onSetError = { error = it },
     onSetDraft = { draft = it },
@@ -128,7 +120,6 @@ fun ProfileEditScreen(
     onSetLocationDirty = { locationDirty = it },
     onSetSchoolName = { schoolName = it },
     onSetSchoolDirty = { schoolDirty = it },
-    onSetSessionKey = { sessionKey = it },
   )
 
   Column(
@@ -154,15 +145,6 @@ fun ProfileEditScreen(
       PirateTextButton(
         onClick = {
           if (saving) return@PirateTextButton
-          val activeSignerAccount = legacySignerAccount
-          if (activeSignerAccount == null) {
-            error = "Profile editing is not available in this Android build yet."
-            return@PirateTextButton
-          }
-          if (!activeSignerAccount.address.equals(ethAddress, ignoreCase = true)) {
-            error = "Active address does not match the current signing account."
-            return@PirateTextButton
-          }
           saving = true
           error = null
           scope.launch {
@@ -173,14 +155,13 @@ fun ProfileEditScreen(
               return@launch
             }
             var nextAvatarUri = avatarUri.orEmpty()
-            var activeSessionKey = sessionKey
 
             if (avatarDirty) {
               if (!avatarBase64.isNullOrBlank()) {
                 val uploadResult = withContext(Dispatchers.IO) {
                   val jpegBytes = Base64.decode(avatarBase64, Base64.DEFAULT)
                   ProfileAvatarUploadApi.uploadAvatarJpeg(
-                    ownerEthAddress = activeSignerAccount.address,
+                    ownerEthAddress = ethAddress,
                     jpegBytes = jpegBytes,
                   )
                 }
@@ -202,7 +183,7 @@ fun ProfileEditScreen(
                 val uploadResult = withContext(Dispatchers.IO) {
                   val jpegBytes = Base64.decode(coverBase64, Base64.DEFAULT)
                   ProfileCoverUploadApi.uploadCoverJpeg(
-                    ownerEthAddress = activeSignerAccount.address,
+                    ownerEthAddress = ethAddress,
                     jpegBytes = jpegBytes,
                   )
                 }
@@ -244,27 +225,10 @@ fun ProfileEditScreen(
 
             val payload = ProfileContractApi.buildProfileInput(working)
 
-            // Ensure session key for silent signing
-            if (activeSessionKey == null) {
-              Log.d("ProfileEdit", "No session key, authorizing...")
-              val authResult = TempoSessionKeyApi.authorizeSessionKey(
-                activity = activity,
-                account = activeSignerAccount,
-                rpId = activeSignerAccount.rpId,
-              )
-              if (authResult.success && authResult.sessionKey != null) {
-                activeSessionKey = authResult.sessionKey
-                sessionKey = activeSessionKey
-                Log.d("ProfileEdit", "Session key authorized")
-              } else {
-                Log.w("ProfileEdit", "Session key auth failed: ${authResult.error}, falling back to passkey")
-              }
-            }
-
             val profileResult =
-              LegacyIdentityWriteBridge.upsertProfile(
+              PrivyIdentityWriteBridge.upsertProfile(
                 activity = activity,
-                ownerAddress = activeSignerAccount.address,
+                ownerAddress = ethAddress,
                 profileInput = payload,
               )
             val profileError = if (profileResult.success) null else profileResult.error ?: "Profile update failed"
@@ -284,7 +248,7 @@ fun ProfileEditScreen(
                 values.add(nextAvatarUri)
               }
               if (coverDirty) {
-                keys.add(TempoNameRecordsApi.PROFILE_COVER_RECORD_KEY)
+                keys.add(PirateNameRecordsApi.PROFILE_COVER_RECORD_KEY)
                 values.add(nextCoverUri)
               }
               if (locationDirty) {
@@ -298,9 +262,9 @@ fun ProfileEditScreen(
 
               if (keys.isNotEmpty()) {
                 val recordResult =
-                  LegacyIdentityWriteBridge.setTextRecords(
+                  PrivyIdentityWriteBridge.setTextRecords(
                     activity = activity,
-                    ownerAddress = activeSignerAccount.address,
+                    ownerAddress = ethAddress,
                     node = node,
                     keys = keys,
                     values = values,

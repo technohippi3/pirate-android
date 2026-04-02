@@ -1,15 +1,12 @@
 package sc.pirate.app.music
 
-import android.app.Activity
 import android.content.Context
 import android.net.Uri
 import android.util.Log
 import sc.pirate.app.BuildConfig
-import sc.pirate.app.tempo.ContentKeyManager
-import sc.pirate.app.tempo.P256Utils
-import sc.pirate.app.tempo.PrfRootSeedStore
-import sc.pirate.app.tempo.PurchaseContentCrypto
-import sc.pirate.app.tempo.TempoPasskeyManager
+import sc.pirate.app.crypto.ContentKeyManager
+import sc.pirate.app.crypto.P256Utils
+import sc.pirate.app.crypto.PurchaseEnvelopeCrypto
 import sc.pirate.app.util.HttpClients
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -230,6 +227,29 @@ private suspend fun reEnvelopeAndRefreshPurchaseAccess(
     return ReEnvelopeAccessRefreshResult(
         accessInfo = requestPurchaseAccess(apiBase, ownerAddress, purchaseId),
     )
+}
+
+private fun parsePurchaseEnvelope(envelopeJson: JSONObject): PurchaseEnvelopeCrypto.PurchaseEnvelope? {
+    val ephemeralPubHex = envelopeJson.optString("ephemeralPub", "").ifBlank { return null }
+    val ivHex = envelopeJson.optString("iv", "").ifBlank { return null }
+    val ciphertextHex = envelopeJson.optString("ciphertext", "").ifBlank { return null }
+    return runCatching {
+        PurchaseEnvelopeCrypto.PurchaseEnvelope(
+            ephemeralPub = P256Utils.hexToBytes(ephemeralPubHex),
+            iv = P256Utils.hexToBytes(ivHex),
+            ciphertext = P256Utils.hexToBytes(ciphertextHex),
+        )
+    }.getOrNull()
+}
+
+private fun unwrapPurchaseDekWithCurrentContentKey(
+    context: Context,
+    envelope: PurchaseEnvelopeCrypto.PurchaseEnvelope,
+): ByteArray? {
+    val localContentKey = runCatching { ContentKeyManager.getOrCreate(context) }.getOrNull() ?: return null
+    return runCatching {
+        PurchaseEnvelopeCrypto.unwrapDekFromEnvelope(localContentKey.privateKey, envelope)
+    }.getOrNull()
 }
 
 private suspend fun requestPurchaseKaraokeAccess(
@@ -455,8 +475,8 @@ private fun purchaseCacheFile(context: Context, purchaseId: String, assetType: S
  *   1. Fetching access info (manifestRef + artifactRef) from the API.
  *   2. Fetching the Arweave manifest → envelope ref.
  *   3. Fetching the Arweave envelope → ECIES data.
- *   4. Obtaining the PRF root seed (from cache or passkey assertion).
- *   5. Deriving the purchase keypair and unwrapping the DEK.
+ *   4. Unwrapping the DEK with the current device content key.
+ *   5. If needed, re-enveloping legacy purchases to the current content key and retrying.
  *   6. Downloading and decrypting the encrypted artifact.
  *   7. Writing plaintext to a cache file and returning its file:// URI.
  *
@@ -468,8 +488,6 @@ internal suspend fun resolvePlayableTrackForUi(
     context: Context,
     ownerEthAddress: String?,
     purchaseIdsByTrackId: Map<String, String>,
-    activity: Activity? = null,
-    tempoAccount: TempoPasskeyManager.PasskeyAccount? = null,
 ): PlaybackResolveResult = withContext(Dispatchers.IO) {
     if (track.uri.isNotBlank()) return@withContext PlaybackResolveResult(track = track, message = null)
 
@@ -690,59 +708,70 @@ internal suspend fun resolvePlayableTrackForUi(
         )
     }
 
-    val ephemeralPubHex = envelopeJson.optString("ephemeralPub", "").ifBlank { null }
-        ?: return@withContext PlaybackResolveResult(track = null, message = "Invalid envelope: missing ephemeralPub.")
-    val ivHex = envelopeJson.optString("iv", "").ifBlank { null }
-        ?: return@withContext PlaybackResolveResult(track = null, message = "Invalid envelope: missing iv.")
-    val ciphertextHex = envelopeJson.optString("ciphertext", "").ifBlank { null }
-        ?: return@withContext PlaybackResolveResult(track = null, message = "Invalid envelope: missing ciphertext.")
+    val envelope =
+        parsePurchaseEnvelope(envelopeJson)
+            ?: return@withContext PlaybackResolveResult(track = null, message = "Invalid envelope data.")
 
-    val envelope = runCatching {
-        PurchaseContentCrypto.PurchaseEnvelope(
-            ephemeralPub = P256Utils.hexToBytes(ephemeralPubHex),
-            iv = P256Utils.hexToBytes(ivHex),
-            ciphertext = P256Utils.hexToBytes(ciphertextHex),
-        )
-    }.getOrNull() ?: return@withContext PlaybackResolveResult(track = null, message = "Invalid envelope data.")
-
-    // First try device-local content key path (no credential-manager prompt).
-    val localContentKey = runCatching { ContentKeyManager.getOrCreate(context) }.getOrNull()
-    var dekBytes = localContentKey?.let { keyPair ->
-        runCatching {
-            PurchaseContentCrypto.unwrapDekFromEnvelope(keyPair.privateKey, envelope)
-        }.getOrNull()
-    }
-
-    // Fallback to PRF-derived purchase key for legacy purchases.
+    var dekBytes = unwrapPurchaseDekWithCurrentContentKey(context, envelope)
     if (dekBytes == null) {
-        val credentialId = tempoAccount?.credentialId
-        var rootSeed = if (credentialId != null) PrfRootSeedStore.load(context, credentialId) else null
-        if (rootSeed == null) {
-            val act = activity
-            val acct = tempoAccount
-            if (act != null && acct != null) {
-                rootSeed =
-                    runCatching {
-                        withContext(Dispatchers.Main) {
-                            TempoPasskeyManager.getPrfRootSeed(act, acct, rpId = acct.rpId)
-                        }
-                    }.onSuccess { derived ->
-                        PrfRootSeedStore.store(context, acct.credentialId, derived)
-                    }.getOrNull()
+        Log.i(
+            TAG_PLAYBACK,
+            "purchase envelope did not match current content key; requesting re-envelope purchaseId=$purchaseId",
+        )
+        val refreshed = reEnvelopeAndRefreshPurchaseAccess(context, apiBase, ownerAddress, purchaseId)
+        if (!refreshed?.errorDetail.isNullOrBlank()) {
+            return@withContext PlaybackResolveResult(
+                track = null,
+                message = refreshed?.errorDetail,
+            )
+        }
+        if (refreshed?.accessInfo != null) {
+            accessInfo = refreshed.accessInfo
+            if (accessInfo.errorCode != null) {
+                return@withContext PlaybackResolveResult(
+                    track = null,
+                    message = mapPlaybackError(accessInfo.errorCode),
+                )
             }
         }
-
-        if (rootSeed != null) {
-            val keypair =
-                runCatching {
-                    PurchaseContentCrypto.derivePurchaseKeyPair(rootSeed, purchaseId)
-                }.getOrNull()
-            if (keypair != null) {
-                dekBytes =
-                    runCatching {
-                        PurchaseContentCrypto.unwrapDekFromEnvelope(keypair.privateScalarBytes, envelope)
-                    }.getOrNull()
-            }
+        manifestRef = accessInfo.manifestRef
+        manifestUrl = resolveArweaveRef(manifestRef)
+            ?: return@withContext PlaybackResolveResult(track = null, message = "Invalid manifest reference.")
+        resolvedManifestJson = fetchJsonFromUrlWithRetry(
+            url = manifestUrl,
+            deadlineMs = unlockDeadlineMs,
+        ) ?: return@withContext PlaybackResolveResult(
+            track = null,
+            message = if (System.currentTimeMillis() >= unlockDeadlineMs) {
+                unlockPendingMessage
+            } else {
+                "Failed to fetch purchase manifest."
+            },
+        )
+        envelopeRef = selectEnvelopeRef(resolvedManifestJson, ownerAddress)
+            ?: return@withContext PlaybackResolveResult(track = null, message = "No envelope found in manifest.")
+        envelopeUrl = resolveArweaveRef(envelopeRef)
+            ?: return@withContext PlaybackResolveResult(track = null, message = "Invalid envelope reference.")
+        envelopeJson = fetchJsonFromUrlWithRetry(
+            url = envelopeUrl,
+            deadlineMs = unlockDeadlineMs,
+        ) ?: return@withContext PlaybackResolveResult(
+            track = null,
+            message = if (System.currentTimeMillis() >= unlockDeadlineMs) {
+                unlockPendingMessage
+            } else {
+                "Failed to fetch key envelope."
+            },
+        )
+        val refreshedEnvelope =
+            parsePurchaseEnvelope(envelopeJson)
+                ?: return@withContext PlaybackResolveResult(track = null, message = "Invalid envelope data.")
+        dekBytes = unwrapPurchaseDekWithCurrentContentKey(context, refreshedEnvelope)
+        if (dekBytes == null) {
+            Log.w(
+                TAG_PLAYBACK,
+                "purchase re-envelope still failed to match current content key purchaseId=$purchaseId",
+            )
         }
     }
     val unwrappedDek =
@@ -765,7 +794,7 @@ internal suspend fun resolvePlayableTrackForUi(
 
     // Decrypt.
     val decryptedBytes = runCatching {
-        PurchaseContentCrypto.decryptIvPrependedArtifact(unwrappedDek, encryptedBytes, accessInfo.artifactIvBytes)
+        PurchaseEnvelopeCrypto.decryptIvPrependedArtifact(unwrappedDek, encryptedBytes, accessInfo.artifactIvBytes)
     }.getOrNull() ?: return@withContext PlaybackResolveResult(track = null, message = "Failed to decrypt track.")
 
     val taggedBytes = runCatching {
@@ -800,8 +829,6 @@ internal suspend fun downloadPurchasedTrackToDevice(
     track: MusicTrack,
     ownerEthAddress: String?,
     purchaseIdsByTrackId: Map<String, String>,
-    activity: Activity? = null,
-    tempoAccount: TempoPasskeyManager.PasskeyAccount? = null,
 ): PurchasedTrackDownloadResult = withContext(Dispatchers.IO) {
     val downloadKey = downloadLookupIdForTrack(track)
         ?: return@withContext PurchasedTrackDownloadResult(success = false, error = "Track is not purchased.")
@@ -820,8 +847,6 @@ internal suspend fun downloadPurchasedTrackToDevice(
         context = context,
         ownerEthAddress = ownerEthAddress,
         purchaseIdsByTrackId = purchaseIdsByTrackId,
-        activity = activity,
-        tempoAccount = tempoAccount,
     )
     val playable = resolved.track
         ?: return@withContext PurchasedTrackDownloadResult(
@@ -888,8 +913,6 @@ internal suspend fun resolveKaraokeStemsForUi(
     context: Context,
     ownerEthAddress: String?,
     purchaseId: String,
-    activity: Activity? = null,
-    tempoAccount: TempoPasskeyManager.PasskeyAccount? = null,
 ): KaraokeResolveResult = withContext(Dispatchers.IO) {
     val ownerAddress = ownerEthAddress?.trim()?.lowercase().orEmpty()
     if (ownerAddress.isBlank()) {
@@ -944,56 +967,39 @@ internal suspend fun resolveKaraokeStemsForUi(
     val envelopeJson = fetchJsonFromUrlWithRetry(envelopeUrl)
         ?: return@withContext KaraokeResolveResult(stemsByType = emptyMap(), message = "Failed to fetch key envelope.")
 
-    val ephemeralPubHex = envelopeJson.optString("ephemeralPub", "").ifBlank { null }
-        ?: return@withContext KaraokeResolveResult(stemsByType = emptyMap(), message = "Invalid envelope: missing ephemeralPub.")
-    val ivHex = envelopeJson.optString("iv", "").ifBlank { null }
-        ?: return@withContext KaraokeResolveResult(stemsByType = emptyMap(), message = "Invalid envelope: missing iv.")
-    val ciphertextHex = envelopeJson.optString("ciphertext", "").ifBlank { null }
-        ?: return@withContext KaraokeResolveResult(stemsByType = emptyMap(), message = "Invalid envelope: missing ciphertext.")
+    val envelope =
+        parsePurchaseEnvelope(envelopeJson)
+            ?: return@withContext KaraokeResolveResult(stemsByType = emptyMap(), message = "Invalid envelope data.")
 
-    val envelope = runCatching {
-        PurchaseContentCrypto.PurchaseEnvelope(
-            ephemeralPub = P256Utils.hexToBytes(ephemeralPubHex),
-            iv = P256Utils.hexToBytes(ivHex),
-            ciphertext = P256Utils.hexToBytes(ciphertextHex),
-        )
-    }.getOrNull() ?: return@withContext KaraokeResolveResult(stemsByType = emptyMap(), message = "Invalid envelope data.")
-
-    val localContentKey = runCatching { ContentKeyManager.getOrCreate(context) }.getOrNull()
-    var dekBytes = localContentKey?.let { keyPair ->
-        runCatching {
-            PurchaseContentCrypto.unwrapDekFromEnvelope(keyPair.privateKey, envelope)
-        }.getOrNull()
-    }
-
+    var dekBytes = unwrapPurchaseDekWithCurrentContentKey(context, envelope)
     if (dekBytes == null) {
-        val credentialId = tempoAccount?.credentialId
-        var rootSeed = if (credentialId != null) PrfRootSeedStore.load(context, credentialId) else null
-        if (rootSeed == null) {
-            val act = activity
-            val acct = tempoAccount
-            if (act != null && acct != null) {
-                rootSeed =
-                    runCatching {
-                        withContext(Dispatchers.Main) {
-                            TempoPasskeyManager.getPrfRootSeed(act, acct, rpId = acct.rpId)
-                        }
-                    }.onSuccess { derived ->
-                        PrfRootSeedStore.store(context, acct.credentialId, derived)
-                    }.getOrNull()
-            }
+        val refreshed = reEnvelopeAndRefreshPurchaseAccess(context, apiBase, ownerAddress, normalizedPurchaseId)
+        if (!refreshed?.errorDetail.isNullOrBlank()) {
+            return@withContext KaraokeResolveResult(
+                stemsByType = emptyMap(),
+                message = refreshed?.errorDetail,
+            )
         }
-        if (rootSeed != null) {
-            val keypair =
-                runCatching {
-                    PurchaseContentCrypto.derivePurchaseKeyPair(rootSeed, normalizedPurchaseId)
-                }.getOrNull()
-            if (keypair != null) {
-                dekBytes =
-                    runCatching {
-                        PurchaseContentCrypto.unwrapDekFromEnvelope(keypair.privateScalarBytes, envelope)
-                    }.getOrNull()
-            }
+        val refreshedManifestRef = refreshed?.accessInfo?.manifestRef?.ifBlank { null } ?: karaokeAccess.manifestRef
+        val refreshedManifestUrl = resolveArweaveRef(refreshedManifestRef)
+            ?: return@withContext KaraokeResolveResult(stemsByType = emptyMap(), message = "Invalid manifest reference.")
+        val refreshedManifestJson = fetchJsonFromUrlWithRetry(refreshedManifestUrl)
+            ?: return@withContext KaraokeResolveResult(stemsByType = emptyMap(), message = "Failed to fetch purchase manifest.")
+        val refreshedEnvelopeRef = selectEnvelopeRef(refreshedManifestJson, ownerAddress)
+            ?: return@withContext KaraokeResolveResult(stemsByType = emptyMap(), message = "No envelope found in manifest.")
+        val refreshedEnvelopeUrl = resolveArweaveRef(refreshedEnvelopeRef)
+            ?: return@withContext KaraokeResolveResult(stemsByType = emptyMap(), message = "Invalid envelope reference.")
+        val refreshedEnvelopeJson = fetchJsonFromUrlWithRetry(refreshedEnvelopeUrl)
+            ?: return@withContext KaraokeResolveResult(stemsByType = emptyMap(), message = "Failed to fetch key envelope.")
+        val refreshedEnvelope =
+            parsePurchaseEnvelope(refreshedEnvelopeJson)
+                ?: return@withContext KaraokeResolveResult(stemsByType = emptyMap(), message = "Invalid envelope data.")
+        dekBytes = unwrapPurchaseDekWithCurrentContentKey(context, refreshedEnvelope)
+        if (dekBytes == null) {
+            Log.w(
+                TAG_PLAYBACK,
+                "karaoke purchase re-envelope still failed to match current content key purchaseId=$normalizedPurchaseId",
+            )
         }
     }
     val unwrappedDek = dekBytes
@@ -1008,7 +1014,7 @@ internal suspend fun resolveKaraokeStemsForUi(
         val encryptedBytes = fetchBytesFromUrl(artifactUrl)
             ?: return@withContext KaraokeResolveResult(stemsByType = emptyMap(), message = "Failed to download ${stem.stemType} stem.")
         val decryptedBytes = runCatching {
-            PurchaseContentCrypto.decryptIvPrependedArtifact(unwrappedDek, encryptedBytes, stem.artifactIvBytes)
+            PurchaseEnvelopeCrypto.decryptIvPrependedArtifact(unwrappedDek, encryptedBytes, stem.artifactIvBytes)
         }.getOrNull() ?: return@withContext KaraokeResolveResult(stemsByType = emptyMap(), message = "Failed to decrypt ${stem.stemType} stem.")
 
         val cacheFile = purchaseCacheFile(context, normalizedPurchaseId, stem.stemType)

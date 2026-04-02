@@ -14,7 +14,7 @@ import org.web3j.abi.datatypes.Utf8String
 import org.web3j.abi.datatypes.generated.Bytes32
 import org.web3j.abi.datatypes.generated.Uint256
 import sc.pirate.app.PirateChainConfig
-import sc.pirate.app.tempo.P256Utils
+import sc.pirate.app.crypto.P256Utils
 import sc.pirate.app.util.HttpClients
 
 internal data class BaseNameRegistrationQuote(
@@ -35,7 +35,7 @@ internal object BaseNameRegistryApi {
       val normalizedLabel = normalizeLabel(label)
       if (normalizedLabel.isBlank()) return@withContext false
       val parentNode =
-        TempoNameRecordsApi.parentNodeForTld("pirate")
+        PirateNameRecordsApi.parentNodeForTld("pirate")
           ?: error("Missing .pirate parent node.")
 
       val callData =
@@ -62,7 +62,7 @@ internal object BaseNameRegistryApi {
       require(durationSeconds > 0L) { "Invalid registration duration." }
 
       val parentNode =
-        TempoNameRecordsApi.parentNodeForTld("pirate")
+        PirateNameRecordsApi.parentNodeForTld("pirate")
           ?: error("Missing .pirate parent node.")
 
       val callData =
@@ -101,7 +101,7 @@ internal object BaseNameRegistryApi {
         callData = callData,
         fullName = fullName,
         label = normalizedLabel,
-        node = TempoNameRecordsApi.computeNode(fullName),
+        node = PirateNameRecordsApi.computeNode(fullName),
         priceWei = priceWei,
         tld = "pirate",
       )
