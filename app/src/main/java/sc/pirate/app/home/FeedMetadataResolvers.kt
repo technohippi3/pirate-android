@@ -3,8 +3,8 @@ package sc.pirate.app.home
 import android.util.LruCache
 import sc.pirate.app.resolvePublicProfileIdentity
 import sc.pirate.app.music.CoverRef
-import sc.pirate.app.util.tempoMusicSocialSubgraphUrls
-import sc.pirate.app.util.tempoProfilesSubgraphUrls
+import sc.pirate.app.util.storyMusicSocialSubgraphUrls
+import sc.pirate.app.util.baseProfilesSubgraphUrls
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -145,7 +145,7 @@ class FeedMetadataResolvers(
 
     val remaining = trackIds.toMutableSet()
     val resolved = linkedMapOf<String, TrackMeta>()
-    for (subgraphUrl in tempoMusicSocialSubgraphUrls()) {
+    for (subgraphUrl in storyMusicSocialSubgraphUrls()) {
       if (remaining.isEmpty()) break
       val query =
         """
@@ -216,7 +216,7 @@ class FeedMetadataResolvers(
 
     val remaining = creators.toMutableSet()
     val resolved = linkedMapOf<String, CreatorProfileMeta>()
-    for (subgraphUrl in tempoProfilesSubgraphUrls()) {
+    for (subgraphUrl in baseProfilesSubgraphUrls()) {
       if (remaining.isEmpty()) break
       val query =
         """

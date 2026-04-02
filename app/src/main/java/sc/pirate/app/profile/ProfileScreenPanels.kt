@@ -69,8 +69,6 @@ import sc.pirate.app.music.OnChainPlaylist
 import sc.pirate.app.music.OnChainPlaylistsApi
 import sc.pirate.app.onboarding.OnboardingRpcHelpers
 import sc.pirate.app.R
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
 import sc.pirate.app.theme.PirateTokens
 import sc.pirate.app.ui.VerifiedSealBadge
 import sc.pirate.app.ui.PirateSheetTitle

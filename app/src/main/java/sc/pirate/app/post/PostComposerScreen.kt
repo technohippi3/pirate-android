@@ -49,7 +49,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.fragment.app.FragmentActivity
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -65,8 +64,6 @@ import sc.pirate.app.identity.SelfVerificationGate
 import sc.pirate.app.songpicker.DefaultSongPickerRepository
 import sc.pirate.app.songpicker.SongPickerSheet
 import sc.pirate.app.songpicker.SongPickerSong
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
 import sc.pirate.app.ui.PiratePrimaryButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -79,12 +76,11 @@ fun PostComposerScreen(
   authState: PirateAuthUiState,
   isAuthenticated: Boolean,
   ownerAddress: String?,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
   onSelfVerifiedChange: (Boolean) -> Unit = {},
   onClose: () -> Unit,
   onShowMessage: (String) -> Unit,
 ) {
-  if (!isAuthenticated || ownerAddress.isNullOrBlank() || tempoAccount == null) {
+  if (!isAuthenticated || ownerAddress.isNullOrBlank()) {
     LaunchedEffect(Unit) {
       onShowMessage("Sign in to create a post")
       onClose()
@@ -99,7 +95,6 @@ fun PostComposerScreen(
   ) {
     PostComposerFormContent(
       ownerAddress = ownerAddress,
-      tempoAccount = tempoAccount,
       onClose = onClose,
       onShowMessage = onShowMessage,
     )
@@ -110,12 +105,10 @@ fun PostComposerScreen(
 @Composable
 private fun PostComposerFormContent(
   ownerAddress: String,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount,
   onClose: () -> Unit,
   onShowMessage: (String) -> Unit,
 ) {
   val context = LocalContext.current
-  val hostActivity = context as? FragmentActivity
   val scope = rememberCoroutineScope()
 
   var selectedVideoUri by remember { mutableStateOf<Uri?>(null) }
@@ -220,11 +213,6 @@ private fun PostComposerFormContent(
     selectedSong?.let { "${it.title} - ${it.artist}" } ?: "Original audio"
 
   fun submitRequestedPosts(postCount: Int) {
-    val activity = hostActivity
-    if (activity == null) {
-      onShowMessage("Unable to access host activity for signing")
-      return
-    }
     if (!PostTxRepository.isConfigured()) {
       onShowMessage("Feed contract is not configured in this build")
       return
@@ -239,25 +227,16 @@ private fun PostComposerFormContent(
     val safeCount = postCount.coerceAtLeast(1)
     posting = true
     scope.launch {
-      val loadedSession =
-        SessionKeyManager.load(context)?.takeIf {
-          SessionKeyManager.isValid(it, ownerAddress = tempoAccount.address) &&
-            it.keyAuthorization?.isNotEmpty() == true
-        }
-
       val results =
         submitPostBatch(
           count = safeCount,
           context = context,
-          activity = activity,
-          account = tempoAccount,
           ownerAddress = ownerAddress,
           song = song,
           videoUri = video,
           basePreviewAtMs = previewAtMs,
           videoDurationMs = videoDurationMs,
           captionText = captionText,
-          sessionKey = loadedSession,
         )
 
       posting = false
@@ -657,15 +636,12 @@ internal fun formatPreviewTime(ms: Long): String {
 private suspend fun submitPostBatch(
   count: Int,
   context: Context,
-  activity: FragmentActivity,
-  account: TempoPasskeyManager.PasskeyAccount,
   ownerAddress: String,
   song: SongPickerSong?,
   videoUri: Uri,
   basePreviewAtMs: Long,
   videoDurationMs: Long?,
   captionText: String,
-  sessionKey: SessionKeyManager.SessionKey?,
 ): List<PostCreateTxResult> {
   val safeCount = count.coerceAtLeast(1)
   val results = ArrayList<PostCreateTxResult>(safeCount)
@@ -673,15 +649,12 @@ private suspend fun submitPostBatch(
     val result =
       PostTxRepository.createPost(
         context = context,
-        activity = activity,
-        account = account,
         ownerAddress = ownerAddress,
         songTrackId = song?.trackId,
         songStoryIpId = song?.songStoryIpId,
         videoUri = videoUri,
         captionText = captionText,
         previewAtMs = resolveBatchPreviewAtMs(basePreviewAtMs = basePreviewAtMs, index = index, videoDurationMs = videoDurationMs),
-        sessionKey = sessionKey,
       )
     results += result
     if (!result.success) break

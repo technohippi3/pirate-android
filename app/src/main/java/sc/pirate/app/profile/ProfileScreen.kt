@@ -14,14 +14,10 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.fragment.app.FragmentActivity
-import sc.pirate.app.music.OnChainPlaylist
-import sc.pirate.app.onboarding.OnboardingRpcHelpers
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
-import sc.pirate.app.util.shortAddress
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import sc.pirate.app.music.OnChainPlaylist
+import sc.pirate.app.util.shortAddress
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,8 +34,6 @@ fun ProfileScreen(
   onBack: (() -> Unit)? = null,
   onMessage: ((String) -> Unit)? = null,
   onEditProfile: (() -> Unit)? = null,
-  activity: FragmentActivity? = null,
-  legacySignerAccount: TempoPasskeyManager.PasskeyAccount? = null,
   viewerEthAddress: String? = ethAddress,
   usePublicProfileReadModel: Boolean = false,
   onPlayPublishedSong: ((PublishedSongRow) -> Unit)? = null,
@@ -67,17 +61,10 @@ fun ProfileScreen(
       !ethAddress.isNullOrBlank() &&
       viewerEthAddress.equals(ethAddress, ignoreCase = true)
   }
-  val hasFollowContract = OnboardingRpcHelpers.hasFollowContract()
-  val canFollow = !isOwnProfile &&
-    hasTargetAddress &&
-    !viewerEthAddress.isNullOrBlank() &&
-    activity != null &&
-    legacySignerAccount != null &&
-    legacySignerAccount.address.equals(viewerEthAddress, ignoreCase = true) &&
-    hasFollowContract
+  val hasFollowContract = EfpFollowApi.isConfigured()
+  val canFollow = !isOwnProfile && hasTargetAddress && !viewerEthAddress.isNullOrBlank() && hasFollowContract
   val canMessage = !isOwnProfile && hasTargetAddress && onMessage != null
 
-  // Follow counts
   var followerCount by remember { mutableIntStateOf(0) }
   var followingCount by remember { mutableIntStateOf(0) }
   var serverFollowing by remember { mutableStateOf(false) }
@@ -87,23 +74,19 @@ fun ProfileScreen(
   var followBusy by remember { mutableStateOf(false) }
   var followError by remember { mutableStateOf<String?>(null) }
 
-  // Scrobble state
   var scrobbles by remember { mutableStateOf<List<ScrobbleRow>>(emptyList()) }
   var scrobblesLoading by remember { mutableStateOf(true) }
   var scrobblesError by remember { mutableStateOf<String?>(null) }
   var scrobbleRetryKey by remember { mutableIntStateOf(0) }
 
-  // Playlist state
   var playlists by remember { mutableStateOf<List<OnChainPlaylist>>(emptyList()) }
   var playlistsLoading by remember { mutableStateOf(true) }
   var playlistsError by remember { mutableStateOf<String?>(null) }
 
-  // Published songs state
   var publishedSongs by remember { mutableStateOf<List<PublishedSongRow>>(emptyList()) }
   var publishedSongsLoading by remember { mutableStateOf(true) }
   var publishedSongsError by remember { mutableStateOf<String?>(null) }
 
-  // Contract profile (all ProfileV2-supported fields)
   var contractProfile by remember { mutableStateOf<ContractProfileData?>(null) }
   var contractLoading by remember { mutableStateOf(true) }
   var contractError by remember { mutableStateOf<String?>(null) }
@@ -112,10 +95,7 @@ fun ProfileScreen(
   var locationRecord by remember { mutableStateOf<String?>(null) }
   var schoolRecord by remember { mutableStateOf<String?>(null) }
 
-  // Playlist detail
   var selectedPlaylist by remember { mutableStateOf<OnChainPlaylist?>(null) }
-
-  // Settings sheet
   var showSettings by remember { mutableStateOf(false) }
 
   val handleText = primaryName ?: shortAddress(ethAddress, minLengthToShorten = 14)
@@ -140,13 +120,12 @@ fun ProfileScreen(
 
   fun onToggleFollow() {
     if (!canFollow) {
-      followError = if (!hasFollowContract) "Follow contract not configured" else "Follow unavailable"
+      followError = if (!hasFollowContract) "EFP follow is not configured" else "Follow unavailable"
       return
     }
     followError = null
     val target = ethAddress ?: return
-    val activeActivity = activity ?: return
-    val account = legacySignerAccount ?: return
+    val viewer = viewerEthAddress ?: return
 
     val nextFollowing = !effectiveFollowing
     val previousFollowers = followerCount
@@ -160,29 +139,20 @@ fun ProfileScreen(
     }
 
     scope.launch {
-      val loadedSessionKey = SessionKeyManager.load(appContext)
-      val activeSessionKey = loadedSessionKey?.takeIf {
-        SessionKeyManager.isValid(it, ownerAddress = account.address) &&
-          it.keyAuthorization?.isNotEmpty() == true
-      }
-
-      val result = if (nextFollowing) {
-        TempoFollowContractApi.follow(
-          activity = activeActivity,
-          account = account,
-          targetAddress = target,
-          rpId = account.rpId,
-          sessionKey = activeSessionKey,
-        )
-      } else {
-        TempoFollowContractApi.unfollow(
-          activity = activeActivity,
-          account = account,
-          targetAddress = target,
-          rpId = account.rpId,
-          sessionKey = activeSessionKey,
-        )
-      }
+      val result =
+        if (nextFollowing) {
+          EfpFollowWriteBridge.follow(
+            context = appContext,
+            viewerAddress = viewer,
+            targetAddress = target,
+          )
+        } else {
+          EfpFollowWriteBridge.unfollow(
+            context = appContext,
+            viewerAddress = viewer,
+            targetAddress = target,
+          )
+        }
 
       if (!result.success) {
         followerCount = previousFollowers
@@ -198,28 +168,44 @@ fun ProfileScreen(
       serverFollowing = nextFollowing
       optimisticFollowing = null
       pendingFollowTarget = null
-      val expectedFollowers = if (nextFollowing != previousFollowing) {
-        (previousFollowers + if (nextFollowing) 1 else -1).coerceAtLeast(0)
-      } else {
-        previousFollowers
-      }
+      val expectedFollowers =
+        if (nextFollowing != previousFollowing) {
+          (previousFollowers + if (nextFollowing) 1 else -1).coerceAtLeast(0)
+        } else {
+          previousFollowers
+        }
+
       runCatching {
-        var latest = expectedFollowers to followingCount
+        var latest = EfpFollowSummary(expectedFollowers, followingCount)
         repeat(4) { attempt ->
-          val counts = OnboardingRpcHelpers.getFollowCounts(target)
-          latest = counts
+          val summary = EfpFollowApi.fetchProfileFollowSummary(target)
+          latest = summary
           val followerCountSettled =
-            counts.first == expectedFollowers || counts.first != previousFollowers || expectedFollowers == previousFollowers
-          if (followerCountSettled || attempt == 3) return@runCatching counts
+            summary.followerCount == expectedFollowers ||
+              summary.followerCount != previousFollowers ||
+              expectedFollowers == previousFollowers
+          if (followerCountSettled || attempt == 3) return@runCatching summary
           delay(800)
         }
         latest
-      }.onSuccess { (followers, following) ->
-        followerCount = followers
-        followingCount = following
+      }.onSuccess { summary ->
+        followerCount = summary.followerCount
+        followingCount = summary.followingCount
       }
-      runCatching { OnboardingRpcHelpers.getFollowState(account.address, target) }
-        .onSuccess { latestFollowing -> serverFollowing = latestFollowing }
+
+      runCatching {
+        var latest = nextFollowing
+        repeat(4) { attempt ->
+          val remoteFollowing = EfpFollowApi.fetchViewerFollowState(viewer, target)
+          latest = remoteFollowing
+          if (remoteFollowing == nextFollowing || attempt == 3) return@runCatching remoteFollowing
+          delay(800)
+        }
+        latest
+      }.onSuccess { latestFollowing ->
+        serverFollowing = latestFollowing
+      }
+
       followBusy = false
       followStateLoaded = true
     }
@@ -327,7 +313,6 @@ fun ProfileScreen(
     }
   }
 
-  // Settings bottom sheet
   if (showSettings) {
     SettingsSheet(
       ethAddress = ethAddress,
@@ -335,5 +320,4 @@ fun ProfileScreen(
       onLogout = onLogout,
     )
   }
-
 }

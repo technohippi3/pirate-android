@@ -11,8 +11,8 @@ What it does:
 - resolves Java 17 (`JAVA_HOME`) if not already set
 - sets safe default `GRADLE_USER_HOME`
 - resolves `ANDROID_SDK_ROOT`/`ANDROID_HOME`
-- creates `apps/android/local.properties` when needed
-- executes `apps/android/gradlew` from the right directory
+- creates `pirate-android/local.properties` when needed
+- executes `pirate-android/gradlew` from the right directory
 
 Use from repo root:
 
@@ -22,4 +22,4 @@ Use from repo root:
 ./scripts/androidw.sh -PAPI_CORE_URL=https://api.example.com installDebug
 ```
 
-Do not call `apps/android/gradlew` directly in normal repo workflows.
+Do not call `pirate-android/gradlew` directly in normal repo workflows.

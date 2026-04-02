@@ -99,33 +99,21 @@ android {
     buildConfigField("String", "PRIVY_REDIRECT_SCHEME", "\"$privyRedirectScheme\"")
     manifestPlaceholders["privyRedirectScheme"] = privyRedirectScheme
 
-    val tempoFollowV1 = projectStringProperty("TEMPO_FOLLOW_V1")
-      ?: "0xB65f7DAD7278ce2b9c14De2b68a3dBc8964F208c"
-    buildConfigField("String", "TEMPO_FOLLOW_V1", "\"$tempoFollowV1\"")
+    val storyPublishCoordinator = projectStringProperty("STORY_PUBLISH_COORDINATOR")
+      ?: "0xbeca8ec21492a3bbdda69f2952734597ad362d18"
+    buildConfigField("String", "STORY_PUBLISH_COORDINATOR", "\"$storyPublishCoordinator\"")
 
-    val tempoFeedV1 = projectStringProperty("TEMPO_FEED_V1")
-      ?: "0x864d6f978fc45955585618e6b179ead35770244a"
-    buildConfigField("String", "TEMPO_FEED_V1", "\"$tempoFeedV1\"")
+    val storyCanonicalLyricsRegistry = projectStringProperty("STORY_CANONICAL_LYRICS_REGISTRY")
+      ?: "0x1f52785d90b7126291dadc01f6f7a6ffc90cd09a"
+    buildConfigField("String", "STORY_CANONICAL_LYRICS_REGISTRY", "\"$storyCanonicalLyricsRegistry\"")
 
-    val tempoFeedV2 = projectStringProperty("TEMPO_FEED_V2")
-      ?: "0x7208221F61463D7f430E5bCe9935F0c756D4818F"
-    buildConfigField("String", "TEMPO_FEED_V2", "\"$tempoFeedV2\"")
+    val storyTrackPresentationRegistry = projectStringProperty("STORY_TRACK_PRESENTATION_REGISTRY")
+      ?: "0x3bfd7e6d5e1273cde8dcef0bebbe18a4a71b3601"
+    buildConfigField("String", "STORY_TRACK_PRESENTATION_REGISTRY", "\"$storyTrackPresentationRegistry\"")
 
-    val tempoPublishCoordinator = projectStringProperty("TEMPO_PUBLISH_COORDINATOR")
-      ?: "0xE41e8818E667e85C1697261a2c991c862b52de00"
-    buildConfigField("String", "TEMPO_PUBLISH_COORDINATOR", "\"$tempoPublishCoordinator\"")
-
-    val tempoCanonicalLyricsRegistry = projectStringProperty("TEMPO_CANONICAL_LYRICS_REGISTRY")
-      ?: "0xEf17E6EA6Ddb92C8BAEf0920728e4a320e60c3d0"
-    buildConfigField("String", "TEMPO_CANONICAL_LYRICS_REGISTRY", "\"$tempoCanonicalLyricsRegistry\"")
-
-    val tempoTrackPresentationRegistry = projectStringProperty("TEMPO_TRACK_PRESENTATION_REGISTRY")
-      ?: "0x77cF07239e859Dd0E91558F9B256453Df7F31E04"
-    buildConfigField("String", "TEMPO_TRACK_PRESENTATION_REGISTRY", "\"$tempoTrackPresentationRegistry\"")
-
-    val tempoTrackPresentationDelegate = projectStringProperty("TEMPO_TRACK_PRESENTATION_DELEGATE")
+    val storyTrackPresentationDelegate = projectStringProperty("STORY_TRACK_PRESENTATION_DELEGATE")
       ?: "0x39839FB90820846e020EAdBFA9af626163274e30"
-    buildConfigField("String", "TEMPO_TRACK_PRESENTATION_DELEGATE", "\"$tempoTrackPresentationDelegate\"")
+    buildConfigField("String", "STORY_TRACK_PRESENTATION_DELEGATE", "\"$storyTrackPresentationDelegate\"")
 
     val apiCoreUrl =
       projectStringProperty("API_CORE_URL")
@@ -149,7 +137,7 @@ android {
 
     val ipfsGatewayUrl =
       projectStringProperty("IPFS_GATEWAY_URL")
-        ?: "https://pir.myfilebase.com/ipfs"
+        ?: "https://psc.myfilebase.com/ipfs"
     buildConfigField("String", "IPFS_GATEWAY_URL", "\"$ipfsGatewayUrl\"")
 
     val arweaveGatewayUrl =

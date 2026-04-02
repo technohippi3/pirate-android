@@ -29,8 +29,8 @@ internal object PrivyScrobbleClient {
   suspend fun submitScrobble(
     context: Context,
     authState: PirateAuthUiState,
-    input: TempoScrobbleInput,
-  ): TempoScrobbleSubmitResult {
+    input: ScrobbleInput,
+  ): ScrobbleSubmitResult {
     return runCatching {
       val session = resolveSession(context = context, authState = authState)
       withContext(Dispatchers.IO) {
@@ -75,7 +75,7 @@ internal object PrivyScrobbleClient {
           if (txHash.isBlank()) {
             error("Privy scrobble route succeeded without a txHash.")
           }
-          TempoScrobbleSubmitResult(
+          ScrobbleSubmitResult(
             success = true,
             txHash = txHash,
             trackId = payload.optString("trackId").trim().ifBlank { null },
@@ -85,7 +85,7 @@ internal object PrivyScrobbleClient {
         }
       }
     }.getOrElse { err ->
-      TempoScrobbleSubmitResult(
+      ScrobbleSubmitResult(
         success = false,
         error = err.message ?: "Privy scrobble request failed",
       )

@@ -4,7 +4,7 @@ import java.io.ByteArrayOutputStream
 
 private const val ID3_HEADER_SIZE = 10
 private const val ID3V23_MAJOR_VERSION = 3
-private const val PURCHASE_RECEIPT_URL_BASE = "https://tempo.pirate.sc/receipt/"
+private const val PURCHASE_RECEIPT_URL_BASE = "https://cdn.pirate.sc/receipt/"
 
 private fun isLikelyMp3Bytes(bytes: ByteArray): Boolean {
   if (bytes.size >= 3 &&

@@ -41,7 +41,6 @@ internal fun MusicScreen(
   onOpenSongPage: ((trackId: String, title: String?, artist: String?) -> Unit)? = null,
   onOpenArtistPage: ((artistName: String) -> Unit)? = null,
   hostActivity: androidx.fragment.app.FragmentActivity? = null,
-  tempoAccount: sc.pirate.app.tempo.TempoPasskeyManager.PasskeyAccount? = null,
 ) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
@@ -530,9 +529,7 @@ internal fun MusicScreen(
           onSetDownloadedTracksByContentId = { downloadedTracksByContentId = it },
           onOpenPlayer = onOpenPlayer,
           onShowMessage = onShowMessage,
-          hostActivity = hostActivity,
-          tempoAccount = tempoAccount,
-        )
+            )
       }
     },
     onOpenRoom = { room ->
@@ -619,12 +616,10 @@ internal fun MusicScreen(
     onChangePlaylistCover = { playlist, coverUri ->
       changePlaylistCoverWithUi(
         context = context,
-        hostActivity = hostActivity,
         playlist = playlist,
         coverUri = coverUri,
         ownerEthAddress = ownerEthAddress,
         isAuthenticated = isAuthenticated,
-        tempoAccount = tempoAccount,
         onChainPlaylists = onChainPlaylists,
         selectedPlaylistId = selectedPlaylistId,
         selectedPlaylist = selectedPlaylist,
@@ -636,11 +631,9 @@ internal fun MusicScreen(
     onDeletePlaylist = { playlist ->
       deletePlaylistWithUi(
         context = context,
-        hostActivity = hostActivity,
         playlist = playlist,
         ownerEthAddress = ownerEthAddress,
         isAuthenticated = isAuthenticated,
-        tempoAccount = tempoAccount,
         onChainPlaylists = onChainPlaylists,
         selectedPlaylistId = selectedPlaylistId,
         onSetOnChainPlaylists = { onChainPlaylists = it },
@@ -702,8 +695,6 @@ internal fun MusicScreen(
         context = context,
         ownerEthAddress = ownerEthAddress,
         purchaseIdsByTrackId = purchaseIdsByTrackId,
-        activity = hostActivity,
-        tempoAccount = tempoAccount,
       )
     },
   )
@@ -712,8 +703,6 @@ internal fun MusicScreen(
     selectedTrack = selectedTrack,
     ownerEthAddress = ownerEthAddress,
     isAuthenticated = isAuthenticated,
-    hostActivity = hostActivity,
-    tempoAccount = tempoAccount,
     tracks = tracks,
     downloadedTracksByContentId = downloadedTracksByContentId,
     uploadBusy = uploadBusy,

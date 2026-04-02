@@ -1,12 +1,10 @@
 package sc.pirate.app.music
 
+import android.content.Context
 import android.net.Uri
-import androidx.fragment.app.FragmentActivity
 import sc.pirate.app.BuildConfig
-import sc.pirate.app.store.submitCallWithFallback
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoClient
-import sc.pirate.app.tempo.TempoPasskeyManager
+import sc.pirate.app.PirateChainConfig
+import sc.pirate.app.auth.privy.PrivyRelayClient
 import sc.pirate.app.util.HttpClients
 import java.math.BigInteger
 import kotlinx.coroutines.Dispatchers
@@ -23,7 +21,6 @@ import org.web3j.abi.datatypes.generated.Uint256
 private val liveRoomJsonType = "application/json; charset=utf-8".toMediaType()
 private val liveRoomHexAddressRegex = Regex("^0x[0-9a-fA-F]{40}$")
 private val liveRoomPositiveIntegerRegex = Regex("^\\d+$")
-private const val MIN_GAS_LIMIT_LIVE_TICKET_TRANSFER = 120_000L
 private const val LIVE_ROOM_MAX_UID = 0xFFFF_FFFFL
 
 internal data class LiveRoomPublicInfo(
@@ -336,24 +333,23 @@ internal object LiveRoomEntryApi {
 }
 
 internal suspend fun submitLiveTicketPayment(
-  activity: FragmentActivity,
-  account: TempoPasskeyManager.PasskeyAccount,
+  context: Context,
+  roomId: String,
   requirements: LiveRoomPaymentRequirements,
-  sessionKey: SessionKeyManager.SessionKey? = null,
-  preferSelfPay: Boolean = false,
 ): String {
   val scheme = requirements.scheme.trim().lowercase()
-  if (scheme != "tempo-tip20") {
+  if (scheme != "exact") {
     throw IllegalStateException("Unsupported live ticket payment scheme: $scheme")
   }
   val network = requirements.network.trim().lowercase()
-  if (network != "eip155:42431") {
+  val chainId =
+    when (network) {
+      "eip155:84532" -> PirateChainConfig.BASE_SEPOLIA_CHAIN_ID
+      "eip155:8453" -> 8_453L
+      else -> null
+    }
+  if (chainId == null) {
     throw IllegalStateException("Unsupported live ticket payment network: $network")
-  }
-
-  val chainId = withContext(Dispatchers.IO) { TempoClient.getChainId() }
-  if (chainId != TempoClient.CHAIN_ID) {
-    throw IllegalStateException("Wrong chain connected: $chainId (expected ${TempoClient.CHAIN_ID})")
   }
 
   val asset = normalizeLiveAddress(requirements.asset)
@@ -366,15 +362,19 @@ internal suspend fun submitLiveTicketPayment(
   }
 
   val transferCallData = encodeTransferCalldata(payTo = payTo, amount = amount)
-  return submitCallWithFallback(
-    activity = activity,
-    account = account,
+  return PrivyRelayClient.submitContractCall(
+    context = context,
+    chainId = chainId,
     to = asset,
-    callData = transferCallData,
-    minimumGasLimit = MIN_GAS_LIMIT_LIVE_TICKET_TRANSFER,
-    rpId = account.rpId,
-    sessionKey = sessionKey,
-    preferSelfPay = preferSelfPay,
+    data = transferCallData,
+    intentType = "pirate.live.ticket.purchase",
+    intentArgs =
+      JSONObject()
+        .put("roomId", roomId.trim())
+        .put("network", network)
+        .put("asset", asset)
+        .put("payTo", payTo)
+        .put("amount", amount.toString()),
   )
 }
 

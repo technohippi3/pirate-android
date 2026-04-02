@@ -22,7 +22,7 @@ class RecentStudyAttemptsStoreTest {
       userAddress = user,
       attempts =
         listOf(
-          TempoStudyAttemptInput(
+          StudyAttemptInput(
             studySetKey = studySetKey,
             questionId = questionId,
             rating = 3,
@@ -63,7 +63,7 @@ class RecentStudyAttemptsStoreTest {
       userAddress = user,
       attempts =
         listOf(
-          TempoStudyAttemptInput(
+          StudyAttemptInput(
             studySetKey = studySetKey,
             questionId = questionId,
             rating = 3,
@@ -104,14 +104,14 @@ class RecentStudyAttemptsStoreTest {
       userAddress = user,
       attempts =
         listOf(
-          TempoStudyAttemptInput(
+          StudyAttemptInput(
             studySetKey = studySetKey,
             questionId = questionId,
             rating = 3,
             score = 10_000,
             timestampSec = 1_700_000_010L,
           ),
-          TempoStudyAttemptInput(
+          StudyAttemptInput(
             studySetKey = studySetKey,
             questionId = questionId,
             rating = 3,
@@ -154,14 +154,14 @@ class RecentStudyAttemptsStoreTest {
       userAddress = user,
       attempts =
         listOf(
-          TempoStudyAttemptInput(
+          StudyAttemptInput(
             studySetKey = studySetKey,
             questionId = questionId,
             rating = 3,
             score = 10_000,
             timestampSec = sharedTs,
           ),
-          TempoStudyAttemptInput(
+          StudyAttemptInput(
             studySetKey = studySetKey,
             questionId = questionId,
             rating = 3,

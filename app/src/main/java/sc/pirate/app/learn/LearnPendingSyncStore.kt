@@ -6,15 +6,15 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 internal data class LearnPendingSyncState(
-  val attempts: List<TempoStudyAttemptInput> = emptyList(),
-  val streakClaims: List<TempoStreakClaimInput> = emptyList(),
+  val attempts: List<StudyAttemptInput> = emptyList(),
+  val streakClaims: List<StreakClaimInput> = emptyList(),
   val updatedAtMs: Long = 0L,
 )
 
 internal data class LearnPendingSyncBucket(
   val ownerAddress: String,
-  val attempts: List<TempoStudyAttemptInput>,
-  val streakClaims: List<TempoStreakClaimInput>,
+  val attempts: List<StudyAttemptInput>,
+  val streakClaims: List<StreakClaimInput>,
   val updatedAtMs: Long,
 )
 
@@ -51,8 +51,8 @@ internal object LearnPendingSyncStore {
   fun save(
     context: Context,
     ownerAddress: String,
-    attempts: List<TempoStudyAttemptInput>,
-    streakClaims: List<TempoStreakClaimInput>,
+    attempts: List<StudyAttemptInput>,
+    streakClaims: List<StreakClaimInput>,
     updatedAtMs: Long = System.currentTimeMillis(),
   ) {
     val normalizedOwner = normalizeAddress(ownerAddress) ?: return
@@ -150,14 +150,14 @@ internal object LearnPendingSyncStore {
     return array.toString()
   }
 
-  private fun decodeAttempts(array: JSONArray?): List<TempoStudyAttemptInput> {
+  private fun decodeAttempts(array: JSONArray?): List<StudyAttemptInput> {
     if (array == null) return emptyList()
-    val attempts = ArrayList<TempoStudyAttemptInput>(array.length())
+    val attempts = ArrayList<StudyAttemptInput>(array.length())
     for (index in 0 until array.length()) {
       val row = array.optJSONObject(index) ?: continue
       val attempt =
         normalizeAttempt(
-          TempoStudyAttemptInput(
+          StudyAttemptInput(
             studySetKey = row.optString("studySetKey", ""),
             questionId = row.optString("questionId", ""),
             rating = row.optInt("rating", 0),
@@ -170,14 +170,14 @@ internal object LearnPendingSyncStore {
     return attempts
   }
 
-  private fun decodeClaims(array: JSONArray?): List<TempoStreakClaimInput> {
+  private fun decodeClaims(array: JSONArray?): List<StreakClaimInput> {
     if (array == null) return emptyList()
-    val claims = ArrayList<TempoStreakClaimInput>(array.length())
+    val claims = ArrayList<StreakClaimInput>(array.length())
     for (index in 0 until array.length()) {
       val row = array.optJSONObject(index) ?: continue
       val claim =
         normalizeClaim(
-          TempoStreakClaimInput(
+          StreakClaimInput(
             studySetKey = row.optString("studySetKey", ""),
             dayUtc = row.optLong("dayUtc", -1L),
             nonce = row.optLong("nonce", -1L),
@@ -190,12 +190,12 @@ internal object LearnPendingSyncStore {
     return claims
   }
 
-  private fun normalizeAttempt(attempt: TempoStudyAttemptInput): TempoStudyAttemptInput? {
+  private fun normalizeAttempt(attempt: StudyAttemptInput): StudyAttemptInput? {
     val studySetKey = normalizeBytes32(attempt.studySetKey) ?: return null
     val questionId = normalizeBytes32(attempt.questionId) ?: return null
     if (attempt.rating !in 1..4) return null
     if (attempt.score !in 0..10_000) return null
-    return TempoStudyAttemptInput(
+    return StudyAttemptInput(
       studySetKey = studySetKey,
       questionId = questionId,
       rating = attempt.rating,
@@ -204,14 +204,14 @@ internal object LearnPendingSyncStore {
     )
   }
 
-  private fun normalizeClaim(claim: TempoStreakClaimInput): TempoStreakClaimInput? {
+  private fun normalizeClaim(claim: StreakClaimInput): StreakClaimInput? {
     val studySetKey = normalizeBytes32(claim.studySetKey) ?: return null
     val signatureHex = normalizeSignature(claim.signatureHex) ?: return null
     val dayUtc = claim.dayUtc.coerceAtLeast(0L)
     val nonce = claim.nonce.coerceAtLeast(0L)
     val expirySec = claim.expirySec.coerceAtLeast(0L)
     if (expirySec <= 0L) return null
-    return TempoStreakClaimInput(
+    return StreakClaimInput(
       studySetKey = studySetKey,
       dayUtc = dayUtc,
       nonce = nonce,

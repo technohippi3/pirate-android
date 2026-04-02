@@ -1,20 +1,19 @@
 package sc.pirate.app.music
 
-import sc.pirate.app.util.tempoMusicSocialSubgraphUrls
-import sc.pirate.app.util.tempoPlaylistsSubgraphUrls
+import sc.pirate.app.PirateChainConfig
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 
 internal const val SHARED_WITH_YOU_TAG = "SharedWithYouApi"
-internal const val SHARED_WITH_YOU_TEMPO_RPC = "https://rpc.moderato.tempo.xyz"
-internal const val SHARED_WITH_YOU_SCROBBLE_V4 = "0x30612270FC86F60052278c73379eDbC0EaC13c8E"
+internal const val SHARED_WITH_YOU_STORY_RPC = PirateChainConfig.STORY_AENEID_RPC_URL
+internal const val SHARED_WITH_YOU_SCROBBLE_V4 = PirateChainConfig.STORY_SCROBBLE_V4
 
 internal val sharedWithYouClient = OkHttpClient()
 internal val sharedWithYouJsonMediaType = "application/json; charset=utf-8".toMediaType()
 
-internal fun sharedWithYouPlaylistsSubgraphUrl(): String = tempoPlaylistsSubgraphUrls().first()
+internal fun sharedWithYouPlaylistsSubgraphUrl(): String = PirateChainConfig.STORY_PLAYLISTS_SUBGRAPH_URL
 
-internal fun musicSocialSubgraphUrl(): String = tempoMusicSocialSubgraphUrls().first()
+internal fun musicSocialSubgraphUrl(): String = PirateChainConfig.STORY_MUSIC_SOCIAL_SUBGRAPH_URL
 
 internal fun normalizeSharedNullableString(raw: String?): String? {
   val value = raw?.trim().orEmpty()

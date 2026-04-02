@@ -4,10 +4,10 @@ You can browse a feed, manage a profile, message over XMTP, listen to music, and
 
 The Android app also includes:
 
-- Tempo passkey-based account access
+- embedded wallet authentication via Privy
 - music playback and playlist flows
 - artist and profile pages
 - chat with the Pirate assistant
 - study and streak features
 
-Authentication uses Android Credential Manager. Passkey support depends on the device, Android version, browser or app integration, and installed credential provider. On some GMS-free setups, passkey flows may be limited or unavailable.
+Authentication uses Privy-backed embedded wallets and the app's normal wallet approval flow.

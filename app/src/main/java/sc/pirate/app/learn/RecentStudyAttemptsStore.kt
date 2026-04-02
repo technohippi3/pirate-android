@@ -46,7 +46,7 @@ internal object RecentStudyAttemptsStore {
   @Synchronized
   fun recordSubmittedAttempts(
     userAddress: String,
-    attempts: List<TempoStudyAttemptInput>,
+    attempts: List<StudyAttemptInput>,
   ) {
     val normalizedUser = userAddress.trim().lowercase()
     if (normalizedUser.isBlank() || attempts.isEmpty()) return

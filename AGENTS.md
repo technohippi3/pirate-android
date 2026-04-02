@@ -1,8 +1,8 @@
-# AGENTS (`apps/android`)
+# AGENTS (`pirate-android`)
 
 ## Scope
 
-- Applies to `apps/android/`.
+- Applies to `pirate-android/`.
 
 ## Build Path (Required)
 

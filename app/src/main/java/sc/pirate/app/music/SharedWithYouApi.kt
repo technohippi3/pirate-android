@@ -6,7 +6,7 @@ import kotlinx.coroutines.withContext
 import org.json.JSONArray
 
 /**
- * Shared-with-you data layer (Tempo subgraphs via Goldsky).
+ * Shared-with-you data layer (music/social subgraphs via Goldsky).
  *
  * Semantics:
  * - Tracks: music-social subgraph AccessGrant -> ContentEntry (contentId/pieceCid/datasetOwner/algo)

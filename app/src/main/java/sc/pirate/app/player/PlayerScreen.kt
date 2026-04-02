@@ -83,7 +83,6 @@ import sc.pirate.app.music.fetchPurchasedCloudLibraryTracks
 import sc.pirate.app.music.resolvePlayableTrackForUi
 import sc.pirate.app.music.resolveSongTrackId
 import sc.pirate.app.music.ui.SongPurchaseSheet
-import sc.pirate.app.tempo.SessionKeyManager
 import sc.pirate.app.ui.PirateIconButton
 import sc.pirate.app.ui.PiratePrimaryButton
 import sc.pirate.app.ui.PirateTextButton
@@ -125,8 +124,6 @@ fun PlayerScreen(
   onShowMessage: (String) -> Unit,
   onOpenSongPage: ((trackId: String, title: String?, artist: String?) -> Unit)? = null,
   onOpenArtistPage: ((String) -> Unit)? = null,
-  hostActivity: androidx.fragment.app.FragmentActivity? = null,
-  tempoAccount: sc.pirate.app.tempo.TempoPasskeyManager.PasskeyAccount? = null,
 ) {
   val context = LocalContext.current
   val appContext = remember(context) { context.applicationContext }
@@ -341,8 +338,6 @@ fun PlayerScreen(
           context = context,
           ownerEthAddress = ownerEthAddress,
           purchaseIdsByTrackId = mapOf(trackId to purchaseId),
-          activity = hostActivity,
-          tempoAccount = tempoAccount,
         )
       unlockBusy = false
       val playable = resolved.track
@@ -361,7 +356,7 @@ fun PlayerScreen(
       onShowMessage(messageSongUnavailableForPurchase)
       return
     }
-    if (!isAuthenticated || ownerEthAddress.isNullOrBlank() || tempoAccount == null || hostActivity == null) {
+    if (!isAuthenticated || ownerEthAddress.isNullOrBlank()) {
       onShowMessage(messageSignInToBuy)
       return
     }
@@ -369,18 +364,11 @@ fun PlayerScreen(
     purchaseSubmitting = true
     scope.launch {
       val owner = ownerEthAddress.trim()
-      val loadedSession =
-        SessionKeyManager.load(hostActivity)?.takeIf {
-          SessionKeyManager.isValid(it, ownerAddress = tempoAccount.address)
-        }
       val result =
         SongPurchaseApi.buySong(
-          activity = hostActivity,
-          appContext = appContext,
-          account = tempoAccount,
+          context = appContext,
           ownerAddress = owner,
           songTrackId = trackId,
-          sessionKey = loadedSession,
         )
       purchaseSubmitting = false
       if (!result.success) {
@@ -778,8 +766,6 @@ fun PlayerScreen(
     onOpenShare = { openShareDialog() },
     onOpenSongPage = onOpenSongPage,
     onOpenArtistPage = onOpenArtistPage,
-    hostActivity = hostActivity,
-    tempoAccount = tempoAccount,
   )
 
   SongPurchaseSheet(

@@ -1,6 +1,6 @@
 package sc.pirate.app.song
 
-import sc.pirate.app.util.tempoMusicSocialSubgraphUrls
+import sc.pirate.app.util.storyMusicSocialSubgraphUrls
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
@@ -380,7 +380,7 @@ internal fun postQuery(subgraphUrl: String, query: String, variables: JSONObject
 }
 
 internal fun musicSocialSubgraphUrls(): List<String> {
-  return tempoMusicSocialSubgraphUrls().distinct()
+  return storyMusicSocialSubgraphUrls().distinct()
 }
 
 internal fun isSubgraphAvailabilityError(error: Throwable?): Boolean {

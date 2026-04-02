@@ -1,8 +1,8 @@
 package sc.pirate.app.music
 
 import android.util.Log
-import sc.pirate.app.tempo.TempoClient
-import sc.pirate.app.util.tempoPlaylistsSubgraphUrls
+import sc.pirate.app.PirateChainConfig
+import sc.pirate.app.util.storyPlaylistsSubgraphUrls
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -29,8 +29,8 @@ import java.util.Locale
 object OnChainPlaylistsApi {
   private const val TAG = "OnChainPlaylistsApi"
 
-  private const val PLAYLIST_V1 = TempoPlaylistApi.PLAYLIST_V1
-  private const val PLAYLIST_V1_START_BLOCK = 6_549_318L
+  private const val PLAYLIST_V1 = PirateChainConfig.STORY_PLAYLIST_V1
+  private const val PLAYLIST_V1_START_BLOCK = 16_184_777L
   private const val SUBGRAPH_STALE_BLOCKS = 64L
 
   private const val TOPIC_PLAYLIST_CREATED =
@@ -225,7 +225,7 @@ object OnChainPlaylistsApi {
     }
   }
 
-  private fun playlistsSubgraphUrls(): List<String> = tempoPlaylistsSubgraphUrls()
+  private fun playlistsSubgraphUrls(): List<String> = storyPlaylistsSubgraphUrls()
 
   private fun fetchUserPlaylistsFromRpc(
     ownerAddress: String,
@@ -534,7 +534,7 @@ object OnChainPlaylistsApi {
         .put("params", params)
     val req =
       Request.Builder()
-        .url(TempoClient.RPC_URL)
+        .url(PirateChainConfig.STORY_AENEID_RPC_URL)
         .post(payload.toString().toRequestBody(jsonMediaType))
         .build()
     return client.newCall(req).execute().use { res ->

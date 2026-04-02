@@ -108,11 +108,11 @@ internal fun looksLikeDirectDmTarget(value: String): Boolean {
   val normalized = value.trim()
   if (normalized.isBlank()) return false
   if (looksLikeEthereumAddress(normalized)) return true
-  if (looksLikeTempoName(normalized)) return true
+  if (looksLikePirateName(normalized)) return true
   return false
 }
 
-internal fun looksLikeTempoName(value: String): Boolean {
+internal fun looksLikePirateName(value: String): Boolean {
   val normalized = value.trim().lowercase().removePrefix("@")
   if (normalized.isBlank()) return false
   val dotIndex = normalized.lastIndexOf('.')

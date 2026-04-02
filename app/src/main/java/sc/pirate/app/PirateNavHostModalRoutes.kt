@@ -169,7 +169,6 @@ internal fun NavGraphBuilder.registerModalRoutes(context: PirateNavHostContext) 
         videoUri = videoUri,
         initialSong = initialSong,
         ownerAddress = context.authState.activeAddress() ?: "",
-        tempoAccount = context.legacySignerAccount,
         onBack = { context.navController.popBackStack() },
         onClose = {
           context.navController.popBackStack()
@@ -191,8 +190,6 @@ internal fun NavGraphBuilder.registerModalRoutes(context: PirateNavHostContext) 
     PublishScreen(
       authState = context.authState,
       ownerAddress = context.authState.activeAddress(),
-      hostActivity = context.activity,
-      tempoAccount = context.legacySignerAccount,
       primaryName = context.primaryName,
       isAuthenticated = isAuthenticated,
       onSelfVerifiedChange = { verified ->
@@ -211,7 +208,7 @@ internal fun NavGraphBuilder.registerModalRoutes(context: PirateNavHostContext) 
     enterTransition = { modalEnterTransition() },
     popExitTransition = { modalPopExitTransition() },
   ) {
-    val isAuthenticated = context.legacySignerAccount != null
+    val isAuthenticated = context.authState.hasAnyCredentials()
     sc.pirate.app.player.PlayerScreen(
       player = context.player,
       ownerEthAddress = context.authState.activeAddress(),
@@ -226,8 +223,6 @@ internal fun NavGraphBuilder.registerModalRoutes(context: PirateNavHostContext) 
       onOpenArtistPage = { artistName ->
         context.navController.navigate(PirateRoute.Artist.buildRoute(artistName)) { launchSingleTop = true }
       },
-      hostActivity = context.activity,
-      tempoAccount = context.legacySignerAccount,
     )
   }
 
@@ -344,7 +339,6 @@ internal fun NavGraphBuilder.registerModalRoutes(context: PirateNavHostContext) 
           ?.trim()
           ?.ifBlank { null },
       ownerEthAddress = context.activeAddress,
-      tempoAccount = context.legacySignerAccount,
       hostActivity = context.activity,
       onBack = { context.navController.popBackStack() },
       onShowMessage = context.onShowMessage,

@@ -89,7 +89,7 @@ object ProfileContractApi {
     val addrWord = addr.removePrefix("0x").padStart(64, '0')
     val selector = profileFunctionSelector("getProfile(address)")
     val data = "0x$selector$addrWord"
-    val result = profileEthCall(TempoProfileContractApi.PROFILE_V2, data).removePrefix("0x")
+    val result = profileEthCall(sc.pirate.app.PirateChainConfig.BASE_SEPOLIA_PROFILE_V2, data).removePrefix("0x")
     return decodeProfileTuple(result)
   }
 

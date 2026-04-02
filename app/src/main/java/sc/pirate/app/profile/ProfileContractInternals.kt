@@ -1,7 +1,7 @@
 package sc.pirate.app.profile
 
 import sc.pirate.app.onboarding.OnboardingRpcHelpers
-import sc.pirate.app.tempo.TempoClient
+import sc.pirate.app.PirateChainConfig
 import java.math.BigInteger
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -275,7 +275,7 @@ internal fun profileEthCall(to: String, data: String): String {
 
   val request =
     Request.Builder()
-      .url(TempoClient.RPC_URL)
+      .url(PirateChainConfig.BASE_SEPOLIA_RPC_URL)
       .post(payload.toString().toRequestBody(profileContractJsonMediaType))
       .build()
 

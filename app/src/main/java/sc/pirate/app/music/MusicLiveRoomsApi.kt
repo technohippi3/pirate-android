@@ -2,9 +2,8 @@ package sc.pirate.app.music
 
 import android.content.Context
 import sc.pirate.app.BuildConfig
-import sc.pirate.app.assistant.getTempoWorkerAuthSession
+import sc.pirate.app.assistant.getWorkerAuthSession
 import sc.pirate.app.resolvePublicProfileIdentity
-import sc.pirate.app.tempo.SessionKeyManager
 import sc.pirate.app.util.HttpClients
 import sc.pirate.app.util.shortAddress
 import kotlinx.coroutines.Dispatchers
@@ -39,20 +38,13 @@ internal suspend fun fetchDiscoverableLiveRooms(
   val owner = ownerEthAddress?.trim()?.lowercase().orEmpty()
   val authHeader =
     if (isAuthenticated && owner.isNotBlank()) {
-      val sessionKey =
-        SessionKeyManager.load(context.applicationContext)?.takeIf {
-          SessionKeyManager.isValid(it, ownerAddress = owner) &&
-            it.keyAuthorization?.isNotEmpty() == true
-        }
-      sessionKey?.let {
-        runCatching {
-          getTempoWorkerAuthSession(
-            workerUrl = base,
-            walletAddress = owner,
-            sessionKey = it,
-          )
-        }.getOrNull()?.let { session -> "Bearer ${session.token}" }
-      }
+      runCatching {
+        getWorkerAuthSession(
+          appContext = context.applicationContext,
+          workerUrl = base,
+          userAddress = owner,
+        )
+      }.getOrNull()?.let { session -> "Bearer ${session.token}" }
     } else {
       null
     }

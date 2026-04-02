@@ -35,7 +35,7 @@ internal fun ethCall(to: String, data: String): String {
       )
   val request =
     Request.Builder()
-      .url(SHARED_WITH_YOU_TEMPO_RPC)
+      .url(SHARED_WITH_YOU_STORY_RPC)
       .post(payload.toString().toRequestBody(sharedWithYouJsonMediaType))
       .build()
   sharedWithYouClient.newCall(request).execute().use { response ->

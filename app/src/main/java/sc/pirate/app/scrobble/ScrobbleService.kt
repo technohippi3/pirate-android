@@ -130,7 +130,7 @@ class ScrobbleService(
         return
       }
       val input =
-        TempoScrobbleInput(
+        ScrobbleInput(
           artist = scrobble.artist,
           title = scrobble.title,
           album = scrobble.album,

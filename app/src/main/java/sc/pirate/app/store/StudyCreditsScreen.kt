@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material3.CircularProgressIndicator
@@ -28,9 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoClient
-import sc.pirate.app.tempo.TempoPasskeyManager
+import sc.pirate.app.PirateChainConfig
 import sc.pirate.app.assistant.AssistantQuotaApi
 import sc.pirate.app.assistant.AssistantQuotaStatus
 import sc.pirate.app.assistant.formatCallSeconds
@@ -46,7 +43,7 @@ private val CREDIT_PACKS = listOf(1, 5, 10, 25)
 fun StudyCreditsScreen(
   activity: FragmentActivity,
   isAuthenticated: Boolean,
-  account: TempoPasskeyManager.PasskeyAccount?,
+  walletAddress: String?,
   onClose: () -> Unit,
   onPurchased: () -> Unit,
   onShowMessage: (String) -> Unit,
@@ -60,8 +57,9 @@ fun StudyCreditsScreen(
   var refreshNonce by remember { mutableIntStateOf(0) }
   var assistantQuota by remember { mutableStateOf<AssistantQuotaStatus?>(null) }
 
-  LaunchedEffect(isAuthenticated, account?.address, refreshNonce) {
-    if (!isAuthenticated || account == null) {
+  LaunchedEffect(isAuthenticated, walletAddress, refreshNonce) {
+    val ownerAddress = walletAddress?.trim()
+    if (!isAuthenticated || ownerAddress.isNullOrBlank()) {
       quote = null
       loadingQuote = false
       error = null
@@ -70,22 +68,22 @@ fun StudyCreditsScreen(
     loadingQuote = true
     error = null
     quote =
-      runCatching { StudyCreditsApi.quote(account.address) }
+      runCatching { StudyCreditsApi.quote(ownerAddress) }
         .onFailure { err -> error = err.message ?: "Unable to load credits." }
         .getOrNull()
     assistantQuota =
-      runCatching { AssistantQuotaApi.fetchQuota(activity, account.address) }
+      runCatching { AssistantQuotaApi.fetchQuota(activity, ownerAddress) }
         .getOrNull()
     loadingQuote = false
   }
 
-  val paymentTokenSymbol = quote?.paymentToken?.let(::tokenSymbolForAddress) ?: "αUSD"
-  val creditPriceDisplay = quote?.creditPrice?.let(::formatTokenAmount)?.let { "$it $paymentTokenSymbol" } ?: "--"
+  val paymentTokenSymbol = quote?.paymentToken?.let(::tokenSymbolForAddress) ?: tokenSymbolForAddress(PirateChainConfig.STORY_STABLE_TOKEN)
+  val creditPriceDisplay = quote?.creditPrice?.let(::formatStoreTokenAmount)?.let { "$it $paymentTokenSymbol" } ?: "--"
   val totalCostRaw = quote?.creditPrice?.multiply(BigInteger.valueOf(selectedCredits.toLong())) ?: BigInteger.ZERO
-  val totalCostDisplay = quote?.let { "${formatTokenAmount(totalCostRaw)} $paymentTokenSymbol" } ?: "--"
-  val walletBalanceDisplay = quote?.let { "${formatTokenAmount(it.tokenBalance)} $paymentTokenSymbol" } ?: "--"
+  val totalCostDisplay = quote?.let { "${formatStoreTokenAmount(totalCostRaw)} $paymentTokenSymbol" } ?: "--"
+  val walletBalanceDisplay = quote?.let { "${formatStoreTokenAmount(it.tokenBalance)} $paymentTokenSymbol" } ?: "--"
   val hasSufficientTokenBalance = quote?.tokenBalance?.let { it >= totalCostRaw } ?: false
-  val canBuy = isAuthenticated && account != null && quote != null && !loadingQuote && !buying && hasSufficientTokenBalance
+  val canBuy = isAuthenticated && !walletAddress.isNullOrBlank() && quote != null && !loadingQuote && !buying && hasSufficientTokenBalance
 
   Column(
     modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background),
@@ -95,7 +93,7 @@ fun StudyCreditsScreen(
       onClosePress = onClose,
     )
 
-    if (!isAuthenticated || account == null) {
+    if (!isAuthenticated || walletAddress.isNullOrBlank()) {
       Box(
         modifier = Modifier.fillMaxSize().padding(28.dp),
         contentAlignment = Alignment.Center,
@@ -239,19 +237,15 @@ fun StudyCreditsScreen(
         PiratePrimaryButton(
           text = "Buy",
           onClick = {
-            val passkeyAccount = account ?: return@PiratePrimaryButton
+            val ownerAddress = walletAddress.trim()
             if (!canBuy) return@PiratePrimaryButton
             scope.launch {
               buying = true
               val result =
                 StudyCreditsApi.buy(
-                  activity = activity,
-                  account = passkeyAccount,
+                  context = activity.applicationContext,
+                  ownerAddress = ownerAddress,
                   creditCount = selectedCredits,
-                  sessionKey =
-                    SessionKeyManager.load(activity)?.takeIf {
-                      SessionKeyManager.isValid(it, ownerAddress = passkeyAccount.address)
-                    },
                 )
               buying = false
               if (!result.success) {
@@ -292,12 +286,4 @@ private fun CreditsInfoRow(
       fontWeight = FontWeight.SemiBold,
     )
   }
-}
-
-private fun tokenSymbolForAddress(address: String): String {
-  return if (address.equals(TempoClient.ALPHA_USD, ignoreCase = true)) "αUSD" else "Token"
-}
-
-private fun formatTokenAmount(rawAmount: BigInteger): String {
-  return TempoClient.formatUnits(rawAmount = rawAmount, decimals = 6, maxFractionDigits = 2)
 }

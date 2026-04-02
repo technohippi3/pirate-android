@@ -39,8 +39,6 @@ internal fun NavGraphBuilder.registerProfileRoutes(context: PirateNavHostContext
       onEditProfile = {
         context.navController.navigate(PirateRoute.EditProfile.route) { launchSingleTop = true }
       },
-      activity = context.activity,
-      legacySignerAccount = context.legacySignerAccount,
       viewerEthAddress = context.activeAddress,
       usePublicProfileReadModel = true,
       onPlayPublishedSong = context.playPublishedSong,
@@ -118,8 +116,6 @@ internal fun NavGraphBuilder.registerProfileRoutes(context: PirateNavHostContext
           }
         }
       },
-      activity = context.activity,
-      legacySignerAccount = context.legacySignerAccount,
       viewerEthAddress = context.activeAddress,
       usePublicProfileReadModel = true,
       onPlayPublishedSong = context.playPublishedSong,
@@ -152,7 +148,7 @@ internal fun NavGraphBuilder.registerProfileRoutes(context: PirateNavHostContext
 
   composable(PirateRoute.EditProfile.route) {
     val address = context.activeAddress
-    val canEditProfile = !address.isNullOrBlank() && context.legacySignerAccount != null
+    val canEditProfile = !address.isNullOrBlank() && context.authState.hasAnyCredentials()
     if (!canEditProfile) {
       val message =
         if (context.authState.hasAnyCredentials()) {
@@ -167,7 +163,6 @@ internal fun NavGraphBuilder.registerProfileRoutes(context: PirateNavHostContext
       ProfileEditScreen(
         activity = context.activity,
         ethAddress = address,
-        legacySignerAccount = context.legacySignerAccount,
         onBack = { context.navController.popBackStack() },
         onSaved = {
           context.onRefreshProfileIdentity()

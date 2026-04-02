@@ -1,6 +1,6 @@
 package sc.pirate.app.song
 
-import sc.pirate.app.scrobble.TempoScrobbleApi
+import sc.pirate.app.PirateChainConfig
 import java.math.BigInteger
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
@@ -17,7 +17,7 @@ import org.web3j.abi.datatypes.generated.Uint64
 import org.web3j.abi.datatypes.generated.Uint8
 import org.web3j.crypto.Hash
 
-private const val TEMPO_RPC_URL = "https://rpc.moderato.tempo.xyz"
+private const val SCROBBLE_RPC_URL = PirateChainConfig.STORY_AENEID_RPC_URL
 private val TRACK_REGISTERED_TOPIC = Hash.sha3String("TrackRegistered(bytes32,uint8,bytes32,bytes32,uint64,uint32)")
 private const val TRACK_KIND_IPID_TOPIC = "0x0000000000000000000000000000000000000000000000000000000000000002"
 private const val CHAIN_TRACK_SCAN_WINDOW_BLOCKS = 350_000L
@@ -89,7 +89,7 @@ internal fun fetchRecentRegisteredTrackIdsFromChain(maxEntries: Int): List<Strin
     val logs =
       runCatching {
         ethGetLogs(
-          address = TempoScrobbleApi.SCROBBLE_V4,
+          address = PirateChainConfig.STORY_SCROBBLE_V4,
           fromBlock = fromBlock,
           toBlock = toBlock,
           topics =
@@ -146,7 +146,7 @@ internal fun getTrackMetaFromChain(trackId: String): ChainTrackMeta? {
 
   val function = Function("getTrack", listOf(Bytes32(bytes)), outputs)
   val callData = FunctionEncoder.encode(function)
-  val result = runCatching { ethCall(TempoScrobbleApi.SCROBBLE_V4, callData) }.getOrNull().orEmpty()
+  val result = runCatching { ethCall(PirateChainConfig.STORY_SCROBBLE_V4, callData) }.getOrNull().orEmpty()
   if (!result.startsWith("0x") || result.length <= 2) return null
   val decoded = runCatching { FunctionReturnDecoder.decode(result, function.outputParameters) }.getOrNull() ?: return null
   if (decoded.size < 8) return null
@@ -210,7 +210,7 @@ private fun postRpc(method: String, params: JSONArray): JSONObject {
       .put("id", 1)
       .put("method", method)
       .put("params", params)
-  val req = Request.Builder().url(TEMPO_RPC_URL).post(payload.toString().toRequestBody(songArtistJsonMediaType)).build()
+  val req = Request.Builder().url(SCROBBLE_RPC_URL).post(payload.toString().toRequestBody(songArtistJsonMediaType)).build()
   return songArtistClient.newCall(req).execute().use { res ->
     if (!res.isSuccessful) throw IllegalStateException("RPC failed: ${res.code}")
     val json = JSONObject(res.body?.string().orEmpty())

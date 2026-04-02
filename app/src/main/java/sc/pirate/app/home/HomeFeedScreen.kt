@@ -2,7 +2,6 @@ package sc.pirate.app.home
 
 import android.os.SystemClock
 import android.util.Log
-import androidx.fragment.app.FragmentActivity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -74,8 +73,6 @@ import sc.pirate.app.music.ui.SongPurchaseSheet
 import sc.pirate.app.player.PlayerController
 import sc.pirate.app.post.PostTxRepository
 import sc.pirate.app.song.SongArtistApi
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
 import sc.pirate.app.util.resolveAvatarUrl
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
@@ -98,8 +95,6 @@ fun HomeFeedScreen(
   ownerAddress: String?,
   primaryName: String?,
   avatarUri: String?,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
-  hostActivity: FragmentActivity?,
   onRequireVerification: () -> Unit,
   onOpenLearn: (studySetRef: String?, trackId: String, language: String, version: Int, title: String?, artist: String?) -> Unit,
   onShowMessage: (String) -> Unit,
@@ -567,7 +562,7 @@ fun HomeFeedScreen(
       onShowMessage("No active post to like")
       return
     }
-    if (!isAuthenticated || ownerAddress.isNullOrBlank() || tempoAccount == null || hostActivity == null) {
+    if (!isAuthenticated || ownerAddress.isNullOrBlank()) {
       onShowMessage("Sign in to like posts")
       return
     }
@@ -587,28 +582,18 @@ fun HomeFeedScreen(
       )
 
     scope.launch {
-      val loadedSession =
-        SessionKeyManager.load(hostActivity)?.takeIf {
-          SessionKeyManager.isValid(it, ownerAddress = tempoAccount.address) &&
-            it.keyAuthorization?.isNotEmpty() == true
-        }
-
       val result =
         if (nextLiked) {
           PostTxRepository.likePost(
-            activity = hostActivity,
-            account = tempoAccount,
+            context = appContext,
             ownerAddress = ownerAddress,
             postId = post.id,
-            sessionKey = loadedSession,
           )
         } else {
           PostTxRepository.unlikePost(
-            activity = hostActivity,
-            account = tempoAccount,
+            context = appContext,
             ownerAddress = ownerAddress,
             postId = post.id,
-            sessionKey = loadedSession,
           )
         }
 
@@ -758,25 +743,18 @@ fun HomeFeedScreen(
       onShowMessage("Song unavailable for purchase")
       return
     }
-    if (!isAuthenticated || ownerAddress.isNullOrBlank() || tempoAccount == null || hostActivity == null) {
+    if (!isAuthenticated || ownerAddress.isNullOrBlank()) {
       onShowMessage("Sign in to buy songs")
       return
     }
 
     purchaseSubmitting = true
     scope.launch {
-      val loadedSession =
-        SessionKeyManager.load(hostActivity)?.takeIf {
-          SessionKeyManager.isValid(it, ownerAddress = tempoAccount.address)
-        }
       val result =
         SongPurchaseApi.buySong(
-          activity = hostActivity,
-          appContext = appContext,
-          account = tempoAccount,
+          context = appContext,
           ownerAddress = ownerAddress.trim(),
           songTrackId = trackId,
-          sessionKey = loadedSession,
         )
       purchaseSubmitting = false
       if (!result.success) {

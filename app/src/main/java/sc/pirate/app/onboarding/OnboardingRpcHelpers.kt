@@ -1,7 +1,7 @@
 package sc.pirate.app.onboarding
 
 import android.util.Log
-import sc.pirate.app.BuildConfig
+import sc.pirate.app.PirateChainConfig
 import sc.pirate.app.profile.decodeProfileTuple
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -16,11 +16,11 @@ import java.math.BigInteger
 
 /**
  * RPC helpers for onboarding reads: name availability, profile/name lookups, node computation.
- * Talks to Tempo Moderato via eth_call.
+ * Uses direct RPC eth_call reads for onboarding name/profile lookups.
  */
 object OnboardingRpcHelpers {
   private const val TAG = "OnboardingRpc"
-  private const val RPC_URL = "https://rpc.moderato.tempo.xyz"
+  private const val RPC_URL = PirateChainConfig.BASE_SEPOLIA_RPC_URL
   private const val REGISTRY_V1 = "0x4377af27381CbC8bdb39330DDc656b8f3648B674"
   private const val RECORDS_V1 = "0x3741fDFaEEFe6bA370da44AF8530B6b7361742dD"
   private const val PROFILE_V2 = "0x58eAC016afD2DFdfb935dFcfa0750F30875ea15c"
@@ -133,7 +133,6 @@ object OnboardingRpcHelpers {
     }
   }
 
-  fun hasFollowContract(): Boolean = followContractOrNull() != null
 
   /** Get a text record value for a node and key from RecordsV1 */
   suspend fun getTextRecord(node: String, key: String): String? = withContext(Dispatchers.IO) {
@@ -158,37 +157,6 @@ object OnboardingRpcHelpers {
     } catch (e: Exception) {
       Log.d(TAG, "getTextRecord: failed for key=$key", e)
       null
-    }
-  }
-
-  /** Fetch follower and following counts for an address from FollowV1 */
-  suspend fun getFollowCounts(userAddress: String): Pair<Int, Int> = withContext(Dispatchers.IO) {
-    val followContract = followContractOrNull() ?: return@withContext 0 to 0
-    val addr = userAddress.trim().lowercase().removePrefix("0x").padStart(64, '0')
-    val tupleSel = functionSelector("getFollowCounts(address)")
-    runCatching {
-      val tupleRaw = ethCall(followContract, "0x$tupleSel$addr")
-      decodeFollowCountsTuple(tupleRaw)
-    }.getOrElse { error ->
-      Log.d(TAG, "getFollowCounts: getFollowCounts(address) failed", error)
-      null
-    }
-      ?.let { return@withContext it }
-    0 to 0
-  }
-
-  /** Check if viewer currently follows target on FollowV1 */
-  suspend fun getFollowState(viewerAddress: String, targetAddress: String): Boolean = withContext(Dispatchers.IO) {
-    val followContract = followContractOrNull() ?: return@withContext false
-    val viewer = viewerAddress.trim().lowercase().removePrefix("0x").padStart(64, '0')
-    val target = targetAddress.trim().lowercase().removePrefix("0x").padStart(64, '0')
-    val followsSel = functionSelector("follows(address,address)")
-    try {
-      val r = ethCall(followContract, "0x$followsSel$viewer$target")
-      BigInteger(r.removePrefix("0x").ifBlank { "0" }, 16) != BigInteger.ZERO
-    } catch (e: Exception) {
-      Log.d(TAG, "getFollowState: failed", e)
-      false
     }
   }
 
@@ -219,21 +187,6 @@ object OnboardingRpcHelpers {
   private fun functionSelector(sig: String): String {
     val hash = keccak256(sig.toByteArray(Charsets.UTF_8))
     return bytesToHex(hash.copyOfRange(0, 4))
-  }
-
-  private fun decodeFollowCountsTuple(rawHex: String): Pair<Int, Int>? {
-    val clean = rawHex.removePrefix("0x")
-    if (clean.length < 128) return null
-    val followers = BigInteger(clean.substring(0, 64), 16).toInt()
-    val following = BigInteger(clean.substring(64, 128), 16).toInt()
-    return followers to following
-  }
-
-  private fun followContractOrNull(): String? {
-    val configured = BuildConfig.TEMPO_FOLLOW_V1.trim()
-    if (!configured.startsWith("0x", ignoreCase = true)) return null
-    if (configured.length != 42) return null
-    return configured
   }
 
   fun keccak256(input: ByteArray): ByteArray {

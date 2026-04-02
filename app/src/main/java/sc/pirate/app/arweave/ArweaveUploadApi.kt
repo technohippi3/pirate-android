@@ -11,7 +11,7 @@ import java.io.ByteArrayOutputStream
 /**
  * Upload cover images and lyrics JSON to Arweave via Turbo ANS-104 endpoint.
  *
- * Matches the GPUI desktop implementation in `apps/desktop/src/scrobble/tempo.rs`.
+ * Matches the desktop Arweave upload flow.
  */
 object ArweaveUploadApi {
 

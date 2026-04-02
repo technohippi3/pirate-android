@@ -1,4 +1,4 @@
-# Android App (`apps/android`)
+# Android App (`pirate-android`)
 
 Primary mobile client (Kotlin + Jetpack Compose).
 
@@ -9,12 +9,12 @@ Primary mobile client (Kotlin + Jetpack Compose).
 - Live room discovery/entry and scheduled session call surfaces
 - Wallet/profile/music/chat/home/learn app navigation shell
 
-Top-level routes are declared in `app/src/main/java/com/pirate/app/PirateRoute.kt`.
+Top-level routes are declared in `app/src/main/java/sc/pirate/app/PirateRoute.kt`.
 
 ## Key Product Flows Implemented Here
 
 - Feed posting:
-  - capture (`post/capture`) -> preview -> submit via Tempo/API helpers
+  - capture (`post/capture`) -> preview -> submit via Privy/API helpers
 - Song publish:
   - multi-step publish UI (`music/PublishScreen.kt`) with `SelfVerificationGate`
 - Identity verification:
@@ -86,18 +86,18 @@ Bundle output:
 - `app/build/outputs/bundle/standardRelease/app-standard-release.aab`
 
 APK output:
-- `apps/android/app/build/outputs/apk/debug/app-debug.apk`
+- `pirate-android/app/build/outputs/apk/debug/app-debug.apk`
 
 ## Runtime Defaults and Overrides
 
-Defaults are defined in `app/build.gradle.kts` (API core, voice workers, subgraph endpoints, Tempo addresses).
+Defaults are defined in `app/build.gradle.kts` (API core, voice workers, subgraph endpoints, chain addresses).
 
 Override at install/build time with project properties:
 
 ```bash
 ./scripts/androidw.sh -PAPI_CORE_URL=https://api-core.example.com installDebug
 ./scripts/androidw.sh -PVOICE_CONTROL_PLANE_URL=https://voice.example.com installDebug
-./scripts/androidw.sh -PSUBGRAPH_MUSIC_SOCIAL_URL=https://api.goldsky.com/api/public/<project>/subgraphs/music-social-tempo-launch/<version>/gn installDebug
+./scripts/androidw.sh -PSUBGRAPH_MUSIC_SOCIAL_URL=https://api.goldsky.com/api/public/<project>/subgraphs/music-social/<version>/gn installDebug
 ```
 
 ## Prerequisites

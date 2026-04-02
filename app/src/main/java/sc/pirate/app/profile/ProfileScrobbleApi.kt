@@ -2,9 +2,9 @@ package sc.pirate.app.profile
 
 import sc.pirate.app.music.CoverRef
 import sc.pirate.app.music.SHARED_WITH_YOU_SCROBBLE_V4
-import sc.pirate.app.music.SHARED_WITH_YOU_TEMPO_RPC
+import sc.pirate.app.music.SHARED_WITH_YOU_STORY_RPC
 import sc.pirate.app.music.fetchTrackMetaFromScrobbleV4
-import sc.pirate.app.util.tempoMusicSocialSubgraphUrls
+import sc.pirate.app.PirateChainConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -26,7 +26,7 @@ data class ScrobbleRow(
 
 object ProfileScrobbleApi {
   private const val SCROBBLED_TOPIC0 = "0xe4535246dec82f5f9313b71f0e50716106f16725e5528d9ef8f5b670656d19a8"
-  private const val SCROBBLE_V4_START_BLOCK = 8_797_524L
+  private const val SCROBBLE_V4_START_BLOCK = 16_244_936L
   private const val CHAIN_FALLBACK_WINDOW = 100_000L
   private const val SUBGRAPH_STALE_BLOCK_THRESHOLD = 512L
   private val client = OkHttpClient()
@@ -71,7 +71,7 @@ object ProfileScrobbleApi {
     emptyList()
   }
 
-  private fun musicSocialSubgraphUrls(): List<String> = tempoMusicSocialSubgraphUrls()
+  private fun musicSocialSubgraphUrls(): List<String> = listOf(PirateChainConfig.STORY_MUSIC_SOCIAL_SUBGRAPH_URL)
 
   private fun isSubgraphStale(
     subgraphUrl: String,
@@ -211,7 +211,7 @@ object ProfileScrobbleApi {
 
     val req =
       Request.Builder()
-        .url(SHARED_WITH_YOU_TEMPO_RPC)
+        .url(SHARED_WITH_YOU_STORY_RPC)
         .post(payload.toString().toRequestBody(jsonMediaType))
         .build()
 
@@ -246,7 +246,7 @@ object ProfileScrobbleApi {
         .put("params", JSONArray())
     val req =
       Request.Builder()
-        .url(SHARED_WITH_YOU_TEMPO_RPC)
+        .url(SHARED_WITH_YOU_STORY_RPC)
         .post(payload.toString().toRequestBody(jsonMediaType))
         .build()
     client.newCall(req).execute().use { response ->

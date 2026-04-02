@@ -2,16 +2,12 @@ package sc.pirate.app.music
 
 import android.content.Context
 import android.util.Log
-import androidx.fragment.app.FragmentActivity
 import sc.pirate.app.arweave.Ans104DataItem
-import sc.pirate.app.profile.TempoNameRecordsApi
+import sc.pirate.app.profile.PirateNameRecordsApi
 import sc.pirate.app.security.LocalSecp256k1Store
-import sc.pirate.app.tempo.ContentKeyManager
-import sc.pirate.app.tempo.EciesContentCrypto
-import sc.pirate.app.tempo.P256Utils
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
-import sc.pirate.app.tempo.TempoSessionKeyApi
+import sc.pirate.app.crypto.ContentKeyManager
+import sc.pirate.app.crypto.EciesContentCrypto
+import sc.pirate.app.crypto.P256Utils
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -154,8 +150,6 @@ object UploadedTrackActions {
     track: MusicTrack,
     recipient: String,
     ownerAddress: String,
-    hostActivity: FragmentActivity? = null,
-    tempoAccount: TempoPasskeyManager.PasskeyAccount? = null,
     onStatusMessage: ((String) -> Unit)? = null,
   ): UploadedTrackShareResult = withContext(Dispatchers.IO) {
     val contentId = track.contentId?.trim()?.lowercase().orEmpty()
@@ -178,22 +172,6 @@ object UploadedTrackActions {
       )
     if (recipientAddress.equals(ownerAddress, ignoreCase = true)) {
       return@withContext UploadedTrackShareResult(success = false, error = "Cannot share to your own address.")
-    }
-
-    val sessionKeyError =
-      resolveShareSessionKey(
-        context = context,
-        owner = normalizedOwner,
-        hostActivity = hostActivity,
-        tempoAccount = tempoAccount,
-        onStatusMessage = onStatusMessage,
-      )
-    if (sessionKeyError != null) {
-      return@withContext UploadedTrackShareResult(
-        success = false,
-        recipientAddress = recipientAddress,
-        error = sessionKeyError,
-      )
     }
 
     val contentKey = ContentKeyManager.load(context)
@@ -221,10 +199,10 @@ object UploadedTrackActions {
 
     val recipientPub =
       if (uploadedTrackAddressRegex.matches(normalizedRecipientInput)) {
-        TempoNameRecordsApi.getContentPubKeyForAddress(recipientAddress)
+        PirateNameRecordsApi.getContentPubKeyForAddress(recipientAddress)
       } else {
-        TempoNameRecordsApi.getContentPubKeyForName(normalizedRecipientInput)
-          ?: TempoNameRecordsApi.getContentPubKeyForAddress(recipientAddress)
+        PirateNameRecordsApi.getContentPubKeyForName(normalizedRecipientInput)
+          ?: PirateNameRecordsApi.getContentPubKeyForAddress(recipientAddress)
       }
       ?: return@withContext UploadedTrackShareResult(
         success = false,
@@ -232,6 +210,7 @@ object UploadedTrackActions {
       )
 
     return@withContext runCatching {
+      onStatusMessage?.invoke("Preparing encrypted share...")
       val ownerAesKey = EciesContentCrypto.eciesDecrypt(contentKey.privateKey, resolvedWrappedKey)
       val envelope = try {
         EciesContentCrypto.eciesEncrypt(recipientPub, ownerAesKey)
@@ -285,6 +264,7 @@ object UploadedTrackActions {
           }
       if (envelopeId.isEmpty()) throw IllegalStateException("Envelope upload returned empty ref.")
 
+      onStatusMessage?.invoke("Granting share access...")
       val grantTxHash =
         ensureUploadedTrackGrantOnChainInternal(
           context = context,
@@ -311,61 +291,6 @@ object UploadedTrackActions {
         error = err.message ?: "Share failed.",
       )
     }
-  }
-
-  private suspend fun resolveShareSessionKey(
-    context: Context,
-    owner: String,
-    hostActivity: FragmentActivity?,
-    tempoAccount: TempoPasskeyManager.PasskeyAccount?,
-    onStatusMessage: ((String) -> Unit)?,
-  ): String? {
-    val loaded = SessionKeyManager.load(context)
-    val loadedValidForOwner =
-      loaded != null &&
-        SessionKeyManager.isValid(loaded, ownerAddress = owner) &&
-        loaded.keyAuthorization?.isNotEmpty() == true
-    if (loadedValidForOwner) return null
-
-    val storedOwner = loaded?.ownerAddress?.trim()?.lowercase().orEmpty()
-    if (storedOwner.isNotBlank() && storedOwner != owner) {
-      Log.w(
-        SHARED_WITH_YOU_TAG,
-        "share session key owner mismatch; clearing stale key storedOwner=$storedOwner expectedOwner=$owner",
-      )
-      SessionKeyManager.clear(context)
-    }
-
-    val activity = hostActivity ?: (context as? FragmentActivity)
-    val account = tempoAccount
-    if (activity == null || account == null) {
-      return if (storedOwner.isNotBlank() && storedOwner != owner) {
-        "Session key belonged to another account. Please sign in again to re-authorize sharing."
-      } else {
-        "Session key unavailable. Please sign in again to authorize sharing."
-      }
-    }
-    if (!account.address.equals(owner, ignoreCase = true)) {
-      Log.w(
-        SHARED_WITH_YOU_TAG,
-        "share session key account mismatch account=${account.address.lowercase()} owner=$owner",
-      )
-      return "Signed-in account does not match this track owner. Switch account and try again."
-    }
-
-    onStatusMessage?.invoke("Authorizing Tempo session key...")
-    val auth = TempoSessionKeyApi.authorizeSessionKey(activity = activity, account = account)
-    val authorized =
-      auth.sessionKey?.takeIf {
-        auth.success &&
-          SessionKeyManager.isValid(it, ownerAddress = owner) &&
-          it.keyAuthorization?.isNotEmpty() == true
-      }
-    if (authorized != null) {
-      onStatusMessage?.invoke("Tempo session key authorized.")
-      return null
-    }
-    return auth.error ?: "Session key authorization failed. Please sign in again."
   }
 
   internal suspend fun ensureWrappedKeyFromArweave(

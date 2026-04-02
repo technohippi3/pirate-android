@@ -69,7 +69,7 @@ class LearnPendingSyncStoreTest {
           ownerAddress = "0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
           attempts =
             listOf(
-              TempoStudyAttemptInput(
+              StudyAttemptInput(
                 studySetKey = "0x0101010101010101010101010101010101010101010101010101010101010101",
                 questionId = "0x0202020202020202020202020202020202020202020202020202020202020202",
                 rating = 3,
@@ -79,7 +79,7 @@ class LearnPendingSyncStoreTest {
             ),
           streakClaims =
             listOf(
-              TempoStreakClaimInput(
+              StreakClaimInput(
                 studySetKey = "0x0303030303030303030303030303030303030303030303030303030303030303",
                 dayUtc = 20_000L,
                 nonce = 4L,

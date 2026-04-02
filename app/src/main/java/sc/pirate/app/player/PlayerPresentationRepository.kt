@@ -1,8 +1,8 @@
 package sc.pirate.app.player
 
 import sc.pirate.app.BuildConfig
+import sc.pirate.app.PirateChainConfig
 import sc.pirate.app.music.MusicTrack
-import sc.pirate.app.tempo.TempoClient
 import java.util.Locale
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
@@ -82,7 +82,7 @@ internal object PlayerPresentationRepository {
   private fun resolveIpMetadata(trackId: String): JSONObject? {
     metadataCache[trackId]?.let { return it }
 
-    val registryAddress = normalizeAddress(BuildConfig.TEMPO_TRACK_PRESENTATION_REGISTRY)
+    val registryAddress = normalizeAddress(BuildConfig.STORY_TRACK_PRESENTATION_REGISTRY)
     if (registryAddress == null || registryAddress == ZERO_ADDRESS) return null
 
     val publishId = fetchCanonicalPublishId(registryAddress, trackId) ?: return null
@@ -106,7 +106,11 @@ internal object PlayerPresentationRepository {
         .put("id", 1)
         .put("method", "eth_blockNumber")
         .put("params", JSONArray())
-    val request = Request.Builder().url(TempoClient.RPC_URL).post(payload.toString().toRequestBody(jsonMediaType)).build()
+    val request =
+      Request.Builder()
+        .url(PirateChainConfig.STORY_AENEID_RPC_URL)
+        .post(payload.toString().toRequestBody(jsonMediaType))
+        .build()
     return runCatching {
       client.newCall(request).execute().use { response ->
         if (!response.isSuccessful) return null
@@ -248,7 +252,7 @@ internal object PlayerPresentationRepository {
             .put(JSONObject().put("to", to).put("data", data))
             .put("latest"),
         )
-    val request = Request.Builder().url(TempoClient.RPC_URL).post(payload.toString().toRequestBody(jsonMediaType)).build()
+    val request = Request.Builder().url(PirateChainConfig.STORY_AENEID_RPC_URL).post(payload.toString().toRequestBody(jsonMediaType)).build()
     return client.newCall(request).execute().use { response ->
       if (!response.isSuccessful) throw IllegalStateException("RPC failed: ${response.code}")
       val json = JSONObject(response.body?.string().orEmpty())
@@ -265,7 +269,7 @@ internal object PlayerPresentationRepository {
         .put("id", 1)
         .put("method", method)
         .put("params", params)
-    val request = Request.Builder().url(TempoClient.RPC_URL).post(payload.toString().toRequestBody(jsonMediaType)).build()
+    val request = Request.Builder().url(PirateChainConfig.STORY_AENEID_RPC_URL).post(payload.toString().toRequestBody(jsonMediaType)).build()
     return client.newCall(request).execute().use { response ->
       if (!response.isSuccessful) throw IllegalStateException("RPC failed: ${response.code}")
       val json = JSONObject(response.body?.string().orEmpty())

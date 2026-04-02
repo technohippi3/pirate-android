@@ -3,10 +3,10 @@ package sc.pirate.app.player
 import android.content.Context
 import android.net.Uri
 import sc.pirate.app.BuildConfig
+import sc.pirate.app.PirateChainConfig
 import sc.pirate.app.ViewerContentLocaleResolver
 import sc.pirate.app.music.CoverRef
 import sc.pirate.app.music.MusicTrack
-import sc.pirate.app.tempo.TempoClient
 import java.io.InputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
@@ -201,7 +201,7 @@ internal object PlayerLyricsRepository {
   }
 
   private fun fetchCanonicalLyricsRefForTrack(trackId: String): String? {
-    val registryAddress = normalizeAddress(BuildConfig.TEMPO_CANONICAL_LYRICS_REGISTRY)
+    val registryAddress = normalizeAddress(BuildConfig.STORY_CANONICAL_LYRICS_REGISTRY)
     if (registryAddress == null || registryAddress == ZERO_ADDRESS) return null
     val trackIdBytes = runCatching { hexToBytes(trackId) }.getOrNull() ?: return null
     if (trackIdBytes.size != 32) return null
@@ -227,7 +227,11 @@ internal object PlayerLyricsRepository {
             .put(JSONObject().put("to", to).put("data", data))
             .put("latest"),
         )
-    val request = Request.Builder().url(TempoClient.RPC_URL).post(payload.toString().toRequestBody(jsonMediaType)).build()
+    val request =
+      Request.Builder()
+        .url(PirateChainConfig.STORY_AENEID_RPC_URL)
+        .post(payload.toString().toRequestBody(jsonMediaType))
+        .build()
     return client.newCall(request).execute().use { response ->
       if (!response.isSuccessful) throw IllegalStateException("RPC failed: ${response.code}")
       val json = JSONObject(response.body?.string().orEmpty())

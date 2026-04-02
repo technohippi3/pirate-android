@@ -6,7 +6,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.platform.LocalContext
 import sc.pirate.app.arweave.TurboCreditsApi
 import sc.pirate.app.music.ui.TrackMenuSheet
-import sc.pirate.app.tempo.SessionKeyManager
 import kotlinx.coroutines.launch
 
 @Composable
@@ -15,8 +14,6 @@ internal fun MusicTrackMenuOverlay(
   selectedTrack: MusicTrack?,
   ownerEthAddress: String?,
   isAuthenticated: Boolean,
-  hostActivity: androidx.fragment.app.FragmentActivity? = null,
-  tempoAccount: sc.pirate.app.tempo.TempoPasskeyManager.PasskeyAccount? = null,
   tracks: List<MusicTrack>,
   downloadedTracksByContentId: Map<String, DownloadedTrackEntry>,
   uploadBusy: Boolean,
@@ -78,18 +75,9 @@ internal fun MusicTrackMenuOverlay(
 
       onUploadBusyChange(true)
       scope.launch {
-        val sessionKey = SessionKeyManager.load(context)?.takeIf {
-          SessionKeyManager.isValid(it, ownerAddress = ownerEthAddress)
-        }
-        if (sessionKey == null) {
-          onUploadBusyChange(false)
-          onShowMessage("Session expired. Sign in again to save forever.")
-          return@launch
-        }
-
         val shouldSkipTurboGate = TrackSaveForeverService.isLocalFilebaseTestPathEnabled()
         if (!shouldSkipTurboGate) {
-          val balanceResult = runCatching { TurboCreditsApi.fetchBalance(sessionKey.address) }
+          val balanceResult = runCatching { TurboCreditsApi.fetchBalance(ownerEthAddress) }
           val balanceError = balanceResult.exceptionOrNull()
           if (balanceError != null) {
             onUploadBusyChange(false)
@@ -174,8 +162,6 @@ internal fun MusicTrackMenuOverlay(
               track = track,
               ownerEthAddress = owner,
               purchaseIdsByTrackId = emptyMap(),
-              activity = hostActivity,
-              tempoAccount = tempoAccount,
             )
           } else {
             val uploadedResult =

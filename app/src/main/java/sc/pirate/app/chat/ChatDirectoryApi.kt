@@ -1,6 +1,6 @@
 package sc.pirate.app.chat
 
-import sc.pirate.app.util.tempoProfilesSubgraphUrls
+import sc.pirate.app.util.baseProfilesSubgraphUrls
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -24,7 +24,7 @@ object ChatDirectoryApi {
     query: String,
     first: Int = 12,
   ): List<ChatDirectoryProfile> = withContext(Dispatchers.IO) {
-    val endpoint = tempoProfilesSubgraphUrls().first()
+    val endpoint = baseProfilesSubgraphUrls().first()
 
     val needle = query.trim()
     if (needle.isBlank()) return@withContext emptyList()

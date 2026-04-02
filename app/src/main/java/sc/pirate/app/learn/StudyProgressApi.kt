@@ -1,7 +1,7 @@
 package sc.pirate.app.learn
 
 import sc.pirate.app.util.HttpClients
-import sc.pirate.app.util.tempoStudyProgressSubgraphUrl
+import sc.pirate.app.util.storyStudyProgressSubgraphUrl
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -422,7 +422,7 @@ object StudyProgressApi {
   }
 
   private fun studyProgressSubgraphUrl(): String {
-    return tempoStudyProgressSubgraphUrl()
+    return storyStudyProgressSubgraphUrl()
   }
 
   private fun postQuery(subgraphUrl: String, query: String): JSONObject {

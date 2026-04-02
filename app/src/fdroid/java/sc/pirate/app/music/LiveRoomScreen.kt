@@ -15,7 +15,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
-import sc.pirate.app.tempo.TempoPasskeyManager
 import sc.pirate.app.ui.PiratePrimaryButton
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,7 +29,6 @@ internal fun LiveRoomScreen(
   initialListenerCount: Int?,
   initialStatus: String?,
   ownerEthAddress: String?,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
   hostActivity: FragmentActivity,
   onBack: () -> Unit,
   onShowMessage: (String) -> Unit,

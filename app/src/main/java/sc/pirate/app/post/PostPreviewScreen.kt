@@ -63,7 +63,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
-import androidx.fragment.app.FragmentActivity
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.exoplayer.ExoPlayer
@@ -81,8 +80,6 @@ import com.adamglin.phosphoricons.regular.X
 import sc.pirate.app.songpicker.DefaultSongPickerRepository
 import sc.pirate.app.songpicker.SongPickerSheet
 import sc.pirate.app.songpicker.SongPickerSong
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
 import sc.pirate.app.ui.PirateIconButton
 import sc.pirate.app.ui.PirateOutlinedButton
 import sc.pirate.app.ui.PiratePrimaryButton
@@ -107,14 +104,12 @@ fun PostPreviewScreen(
   videoUri: Uri,
   initialSong: SongPickerSong?,
   ownerAddress: String,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
   onBack: () -> Unit,
   onClose: () -> Unit,
   onShowMessage: (String) -> Unit,
 ) {
   val tag = "PostPreviewScreen"
   val context = LocalContext.current
-  val hostActivity = context as? FragmentActivity
   val scope = rememberCoroutineScope()
 
   var stage by remember { mutableStateOf(PreviewStage.EDIT) }
@@ -433,17 +428,8 @@ fun PostPreviewScreen(
       onShowMessage("Sign in to create a post")
       return
     }
-    val activity = hostActivity
-    if (activity == null) {
-      onShowMessage("Unable to access host activity for signing")
-      return
-    }
     if (!PostTxRepository.isConfigured()) {
       onShowMessage("Feed contract is not configured in this build")
-      return
-    }
-    if (tempoAccount == null) {
-      onShowMessage("No account available")
       return
     }
     val song = selectedSong
@@ -481,16 +467,9 @@ fun PostPreviewScreen(
           return@launch
         }
 
-      val loadedSession =
-        SessionKeyManager.load(context)?.takeIf {
-          SessionKeyManager.isValid(it, ownerAddress = tempoAccount.address) &&
-            it.keyAuthorization?.isNotEmpty() == true
-        }
       val result =
         PostTxRepository.createPost(
           context = context,
-          activity = activity,
-          account = tempoAccount,
           ownerAddress = ownerAddress,
           songTrackId = song?.trackId,
           songStoryIpId = song?.songStoryIpId,
@@ -498,7 +477,6 @@ fun PostPreviewScreen(
           captionText = captionText,
           taggedItems = taggedItems,
           previewAtMs = previewAtMs,
-          sessionKey = loadedSession,
         )
       runCatching { mixedVideoFile.delete() }
 
@@ -539,7 +517,7 @@ fun PostPreviewScreen(
         taggedItemsStatusText = taggedItemsStatusText,
         taggedItemsStatusError = taggedItemsStatusError,
         posting = posting,
-        postEnabled = tempoAccount != null,
+        postEnabled = true,
         onBack = { stage = PreviewStage.EDIT },
         onEditCover = { showFramePicker = true },
         onCaptionChange = { next ->

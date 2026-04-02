@@ -2,7 +2,7 @@ package sc.pirate.app.community
 
 import sc.pirate.app.music.CoverRef
 import sc.pirate.app.onboarding.steps.LANGUAGE_OPTIONS
-import sc.pirate.app.util.tempoProfilesSubgraphUrls
+import sc.pirate.app.util.baseProfilesSubgraphUrls
 import java.math.BigInteger
 import kotlin.math.abs
 import kotlin.math.atan2
@@ -372,5 +372,5 @@ object CommunityApi {
     throw IllegalStateException("Profiles query failed: all subgraph endpoints unreachable")
   }
 
-  private fun profileSubgraphUrls(): List<String> = tempoProfilesSubgraphUrls()
+  private fun profileSubgraphUrls(): List<String> = baseProfilesSubgraphUrls()
 }

@@ -73,8 +73,6 @@ internal fun MusicPlaylistSheets(
   selectedTrack: MusicTrack?,
   isAuthenticated: Boolean,
   ownerEthAddress: String?,
-  tempoAccount: sc.pirate.app.tempo.TempoPasskeyManager.PasskeyAccount?,
-  hostActivity: androidx.fragment.app.FragmentActivity?,
   onShowMessage: (String) -> Unit,
   onCreatePlaylistOpenChange: (Boolean) -> Unit,
   onAddToPlaylistOpenChange: (Boolean) -> Unit,
@@ -85,8 +83,6 @@ internal fun MusicPlaylistSheets(
     open = createPlaylistOpen,
     isAuthenticated = isAuthenticated,
     ownerEthAddress = ownerEthAddress,
-    tempoAccount = tempoAccount,
-    hostActivity = hostActivity,
     onClose = { onCreatePlaylistOpenChange(false) },
     onShowMessage = onShowMessage,
     onSuccess = { playlistId, _, successMessage ->
@@ -99,8 +95,6 @@ internal fun MusicPlaylistSheets(
     track = selectedTrack,
     isAuthenticated = isAuthenticated,
     ownerEthAddress = ownerEthAddress,
-    tempoAccount = tempoAccount,
-    hostActivity = hostActivity,
     onClose = { onAddToPlaylistOpenChange(false) },
     onShowMessage = onShowMessage,
     onSuccess = { playlistId, _, trackAdded ->
@@ -113,8 +107,6 @@ internal fun MusicPlaylistSheets(
 internal fun MusicShareDialog(
   shareTrack: MusicTrack?,
   ownerEthAddress: String?,
-  hostActivity: androidx.fragment.app.FragmentActivity?,
-  tempoAccount: sc.pirate.app.tempo.TempoPasskeyManager.PasskeyAccount?,
   onDismiss: () -> Unit,
   onShowMessage: (String) -> Unit,
 ) {
@@ -165,8 +157,6 @@ internal fun MusicShareDialog(
                 track = activeTrack,
                 recipient = shareRecipientInput,
                 ownerAddress = owner,
-                hostActivity = hostActivity,
-                tempoAccount = tempoAccount,
                 onStatusMessage = onShowMessage,
               )
             shareBusy = false

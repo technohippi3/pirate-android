@@ -1,6 +1,5 @@
 package sc.pirate.app.music.ui
 
-import androidx.fragment.app.FragmentActivity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -28,10 +27,7 @@ import androidx.compose.ui.unit.dp
 import sc.pirate.app.music.LocalPlaylistsStore
 import sc.pirate.app.music.ONCHAIN_PLAYLISTS_ENABLED
 import sc.pirate.app.music.OnChainPlaylistsApi
-import sc.pirate.app.music.TempoPlaylistApi
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
-import sc.pirate.app.tempo.TempoSessionKeyApi
+import sc.pirate.app.music.PiratePlaylistApi
 import sc.pirate.app.ui.PiratePrimaryButton
 import sc.pirate.app.ui.PirateSheetTitle
 import kotlinx.coroutines.delay
@@ -43,8 +39,6 @@ fun CreatePlaylistSheet(
   open: Boolean,
   isAuthenticated: Boolean,
   ownerEthAddress: String?,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
-  hostActivity: FragmentActivity?,
   onClose: () -> Unit,
   onShowMessage: (String) -> Unit,
   onSuccess: (playlistId: String, playlistName: String, successMessage: String) -> Unit,
@@ -102,43 +96,10 @@ fun CreatePlaylistSheet(
             scope.launch {
               busy = true
               val owner = ownerEthAddress?.trim()?.lowercase().orEmpty()
-              if (ONCHAIN_PLAYLISTS_ENABLED && isAuthenticated && owner.isNotBlank() && tempoAccount != null) {
-                val loaded =
-                  SessionKeyManager.load(context)?.takeIf {
-                    SessionKeyManager.isValid(it, ownerAddress = owner) &&
-                      it.keyAuthorization?.isNotEmpty() == true
-                  }
-                val sessionKey =
-                  loaded
-                    ?: run {
-                      val activity = hostActivity
-                      if (activity == null) {
-                        onShowMessage("Session expired. Sign in again to create playlists.")
-                        busy = false
-                        return@launch
-                      }
-                      onShowMessage("Authorizing session key...")
-                      val auth = TempoSessionKeyApi.authorizeSessionKey(activity = activity, account = tempoAccount)
-                      val authorized =
-                        auth.sessionKey?.takeIf {
-                          auth.success &&
-                            SessionKeyManager.isValid(it, ownerAddress = owner) &&
-                            it.keyAuthorization?.isNotEmpty() == true
-                        }
-                      if (authorized == null) {
-                        onShowMessage(
-                          auth.error ?: "Session key authorization failed. Sign in again to create playlists.",
-                        )
-                        busy = false
-                        return@launch
-                      }
-                      authorized
-                    }
-
+              if (ONCHAIN_PLAYLISTS_ENABLED && isAuthenticated && owner.isNotBlank()) {
                 val result =
-                  TempoPlaylistApi.createPlaylist(
-                    account = tempoAccount,
-                    sessionKey = sessionKey,
+                  PiratePlaylistApi.createPlaylist(
+                    context = context,
                     name = trimmed,
                     coverCid = "",
                     visibility = 0,

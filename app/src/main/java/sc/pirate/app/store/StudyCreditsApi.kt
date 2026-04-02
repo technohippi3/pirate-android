@@ -1,9 +1,9 @@
 package sc.pirate.app.store
 
-import androidx.fragment.app.FragmentActivity
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoClient
-import sc.pirate.app.tempo.TempoPasskeyManager
+import android.content.Context
+import org.json.JSONObject
+import sc.pirate.app.PirateChainConfig
+import sc.pirate.app.auth.privy.PrivyRelayClient
 import java.math.BigInteger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -31,48 +31,38 @@ data class StudyCreditsBuyResult(
 )
 
 object StudyCreditsApi {
-  const val STUDY_SET_REGISTRY = "0xB439853d4e8870A5f75277fa6b3c21C9B5Da089A"
+  const val STUDY_SET_REGISTRY = PirateChainConfig.STORY_STUDY_SET_REGISTRY
+  private val ADDRESS_REGEX = Regex("^0x[a-fA-F0-9]{40}$")
 
-  private const val MIN_GAS_LIMIT_APPROVE = 120_000L
-  private const val MIN_GAS_LIMIT_BUY = 260_000L
-
-  suspend fun quote(userAddress: String): StudyCreditsQuote =
-    withContext(Dispatchers.IO) {
-      val owner = userAddress.trim()
-      val paymentToken = readPaymentToken()
-      val walletCredits = readCredits(owner)
-      val creditPrice = readCreditPrice()
-      val tokenBalance = TempoClient.getErc20BalanceRaw(address = owner, token = paymentToken)
-      val allowance = readAllowance(token = paymentToken, owner = owner, spender = STUDY_SET_REGISTRY)
-      StudyCreditsQuote(
-        registry = STUDY_SET_REGISTRY,
-        paymentToken = paymentToken,
-        walletCredits = walletCredits,
-        creditPrice = creditPrice,
-        tokenBalance = tokenBalance,
-        allowance = allowance,
-      )
-    }
+  suspend fun quote(userAddress: String): StudyCreditsQuote = withContext(Dispatchers.IO) {
+    val owner = normalizeAddress(userAddress)
+    val paymentToken = readPaymentToken()
+    val walletCredits = readCredits(owner)
+    val creditPrice = readCreditPrice()
+    val tokenBalance = readErc20BalanceRaw(address = owner, token = paymentToken)
+    val allowance = readErc20Allowance(token = paymentToken, owner = owner, spender = STUDY_SET_REGISTRY)
+    StudyCreditsQuote(
+      registry = STUDY_SET_REGISTRY,
+      paymentToken = paymentToken,
+      walletCredits = walletCredits,
+      creditPrice = creditPrice,
+      tokenBalance = tokenBalance,
+      allowance = allowance,
+    )
+  }
 
   suspend fun buy(
-    activity: FragmentActivity,
-    account: TempoPasskeyManager.PasskeyAccount,
+    context: Context,
+    ownerAddress: String,
     creditCount: Int,
-    rpId: String = account.rpId,
-    sessionKey: SessionKeyManager.SessionKey? = null,
-    preferSelfPay: Boolean = false,
   ): StudyCreditsBuyResult {
     if (creditCount <= 0) {
       return StudyCreditsBuyResult(success = false, error = "Credit count must be greater than zero.")
     }
 
     return runCatching {
-      val chainId = withContext(Dispatchers.IO) { TempoClient.getChainId() }
-      if (chainId != TempoClient.CHAIN_ID) {
-        throw IllegalStateException("Wrong chain connected: $chainId (expected ${TempoClient.CHAIN_ID})")
-      }
-
-      val quote = withContext(Dispatchers.IO) { quote(account.address) }
+      val owner = normalizeAddress(ownerAddress)
+      val quote = withContext(Dispatchers.IO) { quote(owner) }
       val creditCountBig = BigInteger.valueOf(creditCount.toLong())
       val totalCost = quote.creditPrice.multiply(creditCountBig)
 
@@ -84,16 +74,21 @@ object StudyCreditsApi {
       if (quote.allowance < totalCost) {
         val approveCalldata = encodeApproveCall(spender = quote.registry, value = totalCost)
         approvalTxHash =
-          submitCallWithFallback(
-            activity = activity,
-            account = account,
+          PrivyRelayClient.submitContractCall(
+            context = context.applicationContext,
+            chainId = PirateChainConfig.STORY_AENEID_CHAIN_ID,
             to = quote.paymentToken,
-            callData = approveCalldata,
-            minimumGasLimit = MIN_GAS_LIMIT_APPROVE,
-            rpId = rpId,
-            sessionKey = sessionKey,
-            preferSelfPay = preferSelfPay,
+            data = approveCalldata,
+            intentType = "pirate.credits.approve",
+            intentArgs =
+              JSONObject()
+                .put("registry", quote.registry)
+                .put("creditCount", creditCount)
+                .put("amount", totalCost.toString()),
           )
+        if (!awaitStoryReceipt(approvalTxHash)) {
+          throw IllegalStateException("Credits approval reverted on-chain: $approvalTxHash")
+        }
       }
 
       val buyCalldata =
@@ -105,16 +100,21 @@ object StudyCreditsApi {
           ),
         )
       val buyTxHash =
-        submitCallWithFallback(
-          activity = activity,
-          account = account,
+        PrivyRelayClient.submitContractCall(
+          context = context.applicationContext,
+          chainId = PirateChainConfig.STORY_AENEID_CHAIN_ID,
           to = quote.registry,
-          callData = buyCalldata,
-          minimumGasLimit = MIN_GAS_LIMIT_BUY,
-          rpId = rpId,
-          sessionKey = sessionKey,
-          preferSelfPay = preferSelfPay,
+          data = buyCalldata,
+          intentType = "pirate.credits.buy",
+          intentArgs =
+            JSONObject()
+              .put("registry", quote.registry)
+              .put("creditCount", creditCount)
+              .put("amount", totalCost.toString()),
         )
+      if (!awaitStoryReceipt(buyTxHash)) {
+        throw IllegalStateException("Credits purchase reverted on-chain: $buyTxHash")
+      }
 
       StudyCreditsBuyResult(
         success = true,
@@ -135,40 +135,24 @@ object StudyCreditsApi {
         listOf(Address(owner)),
         emptyList(),
       )
-    val callData = FunctionEncoder.encode(function)
-    return parseUint256(ethCall(STUDY_SET_REGISTRY, callData))
+    return parseUint256(storyEthCall(STUDY_SET_REGISTRY, FunctionEncoder.encode(function)))
   }
 
   private fun readCreditPrice(): BigInteger {
     val function = Function("CREDIT_PRICE", emptyList(), emptyList())
-    val callData = FunctionEncoder.encode(function)
-    return parseUint256(ethCall(STUDY_SET_REGISTRY, callData))
+    return parseUint256(storyEthCall(STUDY_SET_REGISTRY, FunctionEncoder.encode(function)))
   }
 
   private fun readPaymentToken(): String {
     val function = Function("paymentToken", emptyList(), emptyList())
-    val callData = FunctionEncoder.encode(function)
-    val result = ethCall(STUDY_SET_REGISTRY, callData)
-    return parseAddressWord(result) ?: TempoClient.ALPHA_USD
+    val result = storyEthCall(STUDY_SET_REGISTRY, FunctionEncoder.encode(function))
+    return parseAddressWord(result) ?: PirateChainConfig.STORY_STABLE_TOKEN
   }
 
-  private fun readAllowance(token: String, owner: String, spender: String): BigInteger {
-    val function =
-      Function(
-        "allowance",
-        listOf(Address(owner), Address(spender)),
-        emptyList(),
-      )
-    val callData = FunctionEncoder.encode(function)
-    return parseUint256(ethCall(token, callData))
-  }
-
-  private fun parseAddressWord(resultHex: String): String? {
-    val clean = resultHex.removePrefix("0x").lowercase()
-    if (clean.length < 64) return null
-    val word = clean.takeLast(64)
-    val raw = word.takeLast(40)
-    if (raw.all { it == '0' }) return null
-    return "0x$raw"
+  private fun normalizeAddress(raw: String): String {
+    val trimmed = raw.trim()
+    val prefixed = if (trimmed.startsWith("0x", ignoreCase = true)) trimmed else "0x$trimmed"
+    require(ADDRESS_REGEX.matches(prefixed)) { "Invalid wallet address." }
+    return "0x${prefixed.removePrefix("0x").removePrefix("0X")}".lowercase()
   }
 }

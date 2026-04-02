@@ -22,7 +22,6 @@
   <string name="onboarding_name_error_taken">该名称已被占用</string>
   <string name="onboarding_name_error_check_failed">无法检查可用性</string>
   <string name="onboarding_name_error_registration_failed">注册失败</string>
-  <string name="onboarding_name_error_legacy_signer_required">需要旧签名账户才能完成引导。</string>
 
   <string name="onboarding_age_title">你多大了？</string>
   <string name="onboarding_age_label">年龄</string>

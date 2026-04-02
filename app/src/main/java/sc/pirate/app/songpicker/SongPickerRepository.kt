@@ -6,7 +6,6 @@ import sc.pirate.app.music.TrackPreviewHistoryStore
 import sc.pirate.app.music.fetchPurchasedCloudLibraryTracks
 import sc.pirate.app.profile.ProfileMusicApi
 import sc.pirate.app.profile.ProfileScrobbleApi
-import sc.pirate.app.tempo.TempoClient
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -310,8 +309,8 @@ object DefaultSongPickerRepository : SongPickerRepository {
 
     val trackIds = prioritizedCandidates.map { it.trackId }
     val termsByTrack =
-      runCatching { TempoClient.fetchSongTermsBatch(trackIds) }
-        .getOrDefault(emptyMap<String, TempoClient.SongTermsResponse>())
+      runCatching { SongTermsApi.fetchSongTermsBatch(trackIds) }
+        .getOrDefault(emptyMap<String, SongTerms>())
     val suggested =
       prioritizedCandidates.mapNotNull { candidate ->
         val terms = termsByTrack[candidate.trackId]
@@ -352,8 +351,8 @@ object DefaultSongPickerRepository : SongPickerRepository {
     val rows = ProfileMusicApi.fetchLatestPublishedSongs(maxEntries = maxEntries)
     val trackIds = rows.map { it.trackId.trim().lowercase() }.filter { it.isNotBlank() }
     val termsByTrack =
-      runCatching { TempoClient.fetchSongTermsBatch(trackIds) }
-        .getOrDefault(emptyMap<String, TempoClient.SongTermsResponse>())
+      runCatching { SongTermsApi.fetchSongTermsBatch(trackIds) }
+        .getOrDefault(emptyMap<String, SongTerms>())
     return rows.mapNotNull { row ->
       val normalizedTrackId = row.trackId.trim().lowercase()
       val terms = termsByTrack[normalizedTrackId]

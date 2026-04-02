@@ -27,8 +27,6 @@ import sc.pirate.app.music.resolveSongTrackId
 import sc.pirate.app.music.ui.AddToPlaylistSheet
 import sc.pirate.app.music.ui.TrackMenuSheet
 import sc.pirate.app.music.ui.TurboCreditsSheet
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
 import kotlinx.coroutines.launch
 
 private const val TURBO_CREDITS_COPY = "Save this song forever on Arweave for ~\$0.03."
@@ -45,8 +43,6 @@ internal fun PlayerTrackMenuOverlay(
   onOpenShare: () -> Unit,
   onOpenSongPage: ((trackId: String, title: String?, artist: String?) -> Unit)? = null,
   onOpenArtistPage: ((String) -> Unit)? = null,
-  hostActivity: androidx.fragment.app.FragmentActivity? = null,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount? = null,
 ) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
@@ -113,18 +109,9 @@ internal fun PlayerTrackMenuOverlay(
 
       uploadBusy = true
       scope.launch {
-        val sessionKey = SessionKeyManager.load(context)?.takeIf {
-          SessionKeyManager.isValid(it, ownerAddress = ownerEthAddress)
-        }
-        if (sessionKey == null) {
-          uploadBusy = false
-          onShowMessage("Session expired. Sign in again to save forever.")
-          return@launch
-        }
-
         val shouldSkipTurboGate = TrackSaveForeverService.isLocalFilebaseTestPathEnabled()
         if (!shouldSkipTurboGate) {
-          val balanceResult = runCatching { TurboCreditsApi.fetchBalance(sessionKey.address) }
+          val balanceResult = runCatching { TurboCreditsApi.fetchBalance(ownerEthAddress) }
           val balanceError = balanceResult.exceptionOrNull()
           if (balanceError != null) {
             uploadBusy = false
@@ -208,8 +195,6 @@ internal fun PlayerTrackMenuOverlay(
               track = t,
               ownerEthAddress = owner,
               purchaseIdsByTrackId = emptyMap(),
-              activity = hostActivity,
-              tempoAccount = tempoAccount,
             )
           } else {
             val uploadedResult =
@@ -298,8 +283,6 @@ internal fun PlayerTrackMenuOverlay(
     track = track,
     isAuthenticated = isAuthenticated,
     ownerEthAddress = ownerEthAddress,
-    tempoAccount = tempoAccount,
-    hostActivity = hostActivity,
     onClose = { addToPlaylistOpen = false },
     onShowMessage = onShowMessage,
     onSuccess = { _, _, _ -> },

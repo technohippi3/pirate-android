@@ -27,17 +27,17 @@ Compile check example:
 JAVA_HOME=/home/x42/.local/share/jdks/jdk-17.0.18+8 GRADLE_USER_HOME=/tmp/gradle-x42 ./gradlew :app:compileDebugKotlin
 ```
 
-Run from `apps/android/` or use `-p` flag:
+Run from `pirate-android/`:
 
 ```bash
-JAVA_HOME=/home/x42/.local/share/jdks/jdk-17.0.18+8 GRADLE_USER_HOME=/tmp/gradle-x42 ./apps/android/gradlew -p ./apps/android installDebug
+JAVA_HOME=/home/x42/.local/share/jdks/jdk-17.0.18+8 GRADLE_USER_HOME=/tmp/gradle-x42 ./scripts/androidw.sh installDebug
 ```
 
 ## Key Directories
 
-- `app/src/main/java/com/pirate/app/` — Main app code (legacy package namespace)
-- `app/src/main/java/com/pirate/app/onboarding/` — Onboarding flow (8 steps)
-- `app/src/main/java/com/pirate/app/tempo/` — Tempo chain auth (passkeys, session keys)
-- `app/src/main/java/com/pirate/app/profile/` — Profile screen
-- `app/src/main/java/com/pirate/app/assistant/` — AI chat (Assistant)
-- `app/src/main/java/com/pirate/app/music/` — Music / content access
+- `app/src/main/java/sc/pirate/app/` — Main app code
+- `app/src/main/java/sc/pirate/app/onboarding/` — Onboarding flow
+- `app/src/main/java/sc/pirate/app/crypto/` — Device-local content crypto helpers
+- `app/src/main/java/sc/pirate/app/profile/` — Profile screen
+- `app/src/main/java/sc/pirate/app/assistant/` — AI chat (Assistant)
+- `app/src/main/java/sc/pirate/app/music/` — Music / content access

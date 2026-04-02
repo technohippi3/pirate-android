@@ -3,8 +3,6 @@ package sc.pirate.app.assistant
 import android.content.Context
 import android.util.Log
 import sc.pirate.app.security.LocalSecp256k1Store
-import sc.pirate.app.tempo.P256Utils
-import sc.pirate.app.tempo.SessionKeyManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -104,77 +102,6 @@ suspend fun getWorkerAuthSession(
   return WorkerAuthSession(token = token, wallet = signingAddress)
 }
 
-suspend fun getTempoWorkerAuthSession(
-  workerUrl: String,
-  walletAddress: String,
-  sessionKey: SessionKeyManager.SessionKey,
-): WorkerAuthSession {
-  val normalizedWallet = walletAddress.trim().lowercase()
-  require(normalizedWallet.isNotBlank()) { "walletAddress is required" }
-  val keyAuthorizationBytes = sessionKey.keyAuthorization
-    ?: throw IllegalStateException("Tempo session key authorization is missing")
-  require(SessionKeyManager.isValid(sessionKey, ownerAddress = normalizedWallet)) {
-    "Tempo session key is invalid for $normalizedWallet"
-  }
-
-  val key = "$workerUrl|$normalizedWallet"
-  val now = System.currentTimeMillis()
-
-  tokenCache[key]?.let { cached ->
-    if (cached.expiresAt > now + 60_000) {
-      return WorkerAuthSession(token = cached.token, wallet = normalizedWallet)
-    }
-  }
-
-  Log.d(TAG, "Authenticating with worker $workerUrl as canonical Tempo wallet $normalizedWallet...")
-
-  val nonceBody = JSONObject().put("wallet", normalizedWallet).toString()
-    .toRequestBody(JSON_MEDIA_TYPE)
-  val nonceReq = Request.Builder()
-    .url("${workerUrl.trimEnd('/')}/auth/nonce")
-    .post(nonceBody)
-    .build()
-
-  val nonce = withContext(Dispatchers.IO) {
-    httpClient.newCall(nonceReq).execute().use { resp ->
-      val body = resp.body?.string().orEmpty()
-      if (!resp.isSuccessful) throw IllegalStateException("Failed to get nonce (${resp.code}): $body")
-      parseNonceFromAuthResponse(body)
-    }
-  }
-
-  val signature = signTempoSessionMessage(
-    sessionKey = sessionKey,
-    walletAddress = normalizedWallet,
-    message = nonce,
-  )
-  val keyAuthorizationHex = "0x${P256Utils.bytesToHex(keyAuthorizationBytes)}"
-
-  val verifyPayload = JSONObject()
-    .put("wallet", normalizedWallet)
-    .put("signature", signature)
-    .put("nonce", nonce)
-    .put("keyAuthorization", keyAuthorizationHex)
-    .toString()
-    .toRequestBody(JSON_MEDIA_TYPE)
-  val verifyReq = Request.Builder()
-    .url("${workerUrl.trimEnd('/')}/auth/verify")
-    .post(verifyPayload)
-    .build()
-
-  val token = withContext(Dispatchers.IO) {
-    httpClient.newCall(verifyReq).execute().use { resp ->
-      val body = resp.body?.string().orEmpty()
-      if (!resp.isSuccessful) throw IllegalStateException("Auth verify failed (${resp.code}): $body")
-      parseTokenFromVerifyResponse(body)
-    }
-  }
-
-  tokenCache[key] = CachedToken(token = token, expiresAt = now + 55 * 60 * 1000)
-  Log.d(TAG, "Authenticated with canonical Tempo wallet successfully")
-  return WorkerAuthSession(token = token, wallet = normalizedWallet)
-}
-
 fun clearWorkerAuthCache() {
   tokenCache.clear()
 }
@@ -211,20 +138,6 @@ private suspend fun localSignMessage(
   sigBytes[64] = sigData.v[0]
 
   "0x" + sigBytes.joinToString("") { "%02x".format(it) }
-}
-
-private fun signTempoSessionMessage(
-  sessionKey: SessionKeyManager.SessionKey,
-  walletAddress: String,
-  message: String,
-): String {
-  val hash = hashWorkerAuthMessage(message)
-  val signature = SessionKeyManager.signWithSessionKey(
-    sessionKey = sessionKey,
-    userAddress = walletAddress,
-    txHash = hash,
-  )
-  return "0x${signature.joinToString("") { "%02x".format(it) }}"
 }
 
 private fun hashWorkerAuthMessage(message: String): ByteArray {

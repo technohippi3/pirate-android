@@ -40,7 +40,6 @@ import sc.pirate.app.ui.PirateTopBar
 import sc.pirate.app.player.PlayerController
 import sc.pirate.app.onboarding.OnboardingStep
 import sc.pirate.app.onboarding.checkOnboardingStatus
-import sc.pirate.app.tempo.SessionKeyManager
 import kotlinx.coroutines.launch
 
 private const val TAG = "PirateApp"
@@ -377,7 +376,6 @@ fun PirateApp(activity: androidx.fragment.app.FragmentActivity) {
     xmtpBootstrapKey = null
     primaryName = null
     avatarUri = null
-    SessionKeyManager.clear(appContext)
     PirateAuthUiState.clear(appContext)
     authState = result.getOrThrow()
     snackbarHostState.showSnackbar("Logged out.")

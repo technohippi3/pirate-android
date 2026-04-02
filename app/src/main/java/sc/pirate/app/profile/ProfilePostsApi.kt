@@ -5,7 +5,7 @@ import sc.pirate.app.ViewerContentLocaleResolver
 import sc.pirate.app.home.FeedMetadataResolvers
 import sc.pirate.app.home.FeedPostCore
 import sc.pirate.app.home.FeedPostResolved
-import sc.pirate.app.util.tempoFeedSubgraphUrls
+import sc.pirate.app.util.storyFeedSubgraphUrls
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -37,7 +37,7 @@ object ProfilePostsApi {
       var lastError: Throwable? = null
       val viewerLocaleTag = context?.let { ViewerContentLocaleResolver.resolve(it.applicationContext) }
 
-      for (subgraphUrl in tempoFeedSubgraphUrls()) {
+      for (subgraphUrl in storyFeedSubgraphUrls()) {
         try {
           val posts = fetchCorePostsFromSubgraph(subgraphUrl, normalizedCreator, first)
           return@withContext metadataResolvers.resolvePosts(posts, viewerLocaleTag = viewerLocaleTag)

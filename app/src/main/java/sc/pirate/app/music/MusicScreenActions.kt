@@ -54,8 +54,6 @@ internal suspend fun playNewReleaseWithUi(
   onSetDownloadedTracksByContentId: (Map<String, DownloadedTrackEntry>) -> Unit,
   onOpenPlayer: () -> Unit,
   onShowMessage: (String) -> Unit,
-  hostActivity: androidx.fragment.app.FragmentActivity? = null,
-  tempoAccount: sc.pirate.app.tempo.TempoPasskeyManager.PasskeyAccount? = null,
 ) {
   val canonicalTrackId = CanonicalTrackId.parse(release.trackId)?.value
   val normalizedCanonicalTrackId = canonicalTrackId?.lowercase()
@@ -138,8 +136,6 @@ internal suspend fun playNewReleaseWithUi(
         track = downloadSourceTrack,
         ownerEthAddress = owner,
         purchaseIdsByTrackId = mapOf(purchaseTrackId to resolvedPurchaseId),
-        activity = hostActivity,
-        tempoAccount = tempoAccount,
       )
     if (!downloadResult.success || downloadResult.mediaUri.isNullOrBlank()) {
       onShowMessage("Download failed: ${downloadResult.error ?: "unknown error"}")

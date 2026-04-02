@@ -33,7 +33,6 @@ internal data class PirateNavHostContext(
   val activeAddress: String?,
   val primaryName: String?,
   val avatarUri: String?,
-  val legacySignerAccount: sc.pirate.app.tempo.TempoPasskeyManager.PasskeyAccount?,
   val onAuthStateChange: (PirateAuthUiState) -> Unit,
   val onRegister: () -> Unit,
   val onLogin: () -> Unit,
@@ -104,8 +103,6 @@ internal fun PirateNavHost(
       Modifier.fillMaxSize().padding(innerPadding)
     }
   val activeAddress = walletSession?.walletAddress ?: authState.activeAddress()
-  val legacySignerAccount = walletSession?.legacySignerAccount
-
   val openSongRoute: (String, String?, String?) -> Unit = { trackId, title, artist ->
     navController.navigate(
       PirateRoute.Song.buildRoute(trackId = trackId, title = title, artist = artist),
@@ -162,7 +159,6 @@ internal fun PirateNavHost(
     activeAddress = activeAddress,
     primaryName = primaryName,
     avatarUri = avatarUri,
-    legacySignerAccount = legacySignerAccount,
     onAuthStateChange = onAuthStateChange,
     onRegister = onRegister,
     onLogin = onLogin,

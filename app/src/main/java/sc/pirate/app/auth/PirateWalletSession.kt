@@ -1,7 +1,5 @@
 package sc.pirate.app.auth
 
-import sc.pirate.app.tempo.TempoPasskeyManager
-
 data class PirateWalletSession(
   val provider: PirateAuthUiState.AuthProvider?,
   val walletAddress: String,
@@ -11,12 +9,10 @@ data class PirateWalletSession(
   val walletSource: PirateAuthUiState.WalletSource?,
   val privyUserId: String? = null,
   val privyWalletId: String? = null,
-  val legacySignerAccount: TempoPasskeyManager.PasskeyAccount? = null,
 ) {
   companion object {
     fun fromAuthState(
       state: PirateAuthUiState,
-      legacySignerAccount: TempoPasskeyManager.PasskeyAccount? = null,
     ): PirateWalletSession? {
       val walletAddress = state.walletAddress?.takeIf { it.isNotBlank() } ?: return null
       return PirateWalletSession(
@@ -28,7 +24,6 @@ data class PirateWalletSession(
         walletSource = state.walletSource,
         privyUserId = state.privyUserId,
         privyWalletId = state.privyWalletId,
-        legacySignerAccount = legacySignerAccount,
       )
     }
   }

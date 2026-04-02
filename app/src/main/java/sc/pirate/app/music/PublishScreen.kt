@@ -9,7 +9,6 @@ import com.adamglin.phosphoricons.regular.*
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.fragment.app.FragmentActivity
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -66,7 +65,6 @@ import androidx.compose.ui.unit.dp
 import sc.pirate.app.auth.PirateAuthUiState
 import sc.pirate.app.identity.SelfVerificationGate
 import sc.pirate.app.song.SongArtistApi
-import sc.pirate.app.tempo.TempoPasskeyManager
 import sc.pirate.app.ui.PiratePrimaryButton
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -140,8 +138,6 @@ private const val PUBLISH_SUCCESS_GENIUS_SUPPORTING_TEXT =
 fun PublishScreen(
   authState: PirateAuthUiState,
   ownerAddress: String?,
-  hostActivity: FragmentActivity?,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
   primaryName: String?,
   isAuthenticated: Boolean,
   onSelfVerifiedChange: (Boolean) -> Unit = {},
@@ -167,8 +163,6 @@ fun PublishScreen(
   ) {
     PublishFormContent(
       ownerAddress = ownerAddress,
-      hostActivity = hostActivity,
-      tempoAccount = tempoAccount,
       primaryName = primaryName,
       onClose = onClose,
       onShowMessage = onShowMessage,
@@ -180,8 +174,6 @@ fun PublishScreen(
 @Composable
 private fun PublishFormContent(
   ownerAddress: String,
-  hostActivity: FragmentActivity?,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
   primaryName: String?,
   onClose: () -> Unit,
   onShowMessage: (String) -> Unit,
@@ -309,8 +301,6 @@ private fun PublishFormContent(
             context = context,
             formData = formData,
             ownerAddress = ownerAddress,
-            hostActivity = hostActivity,
-            tempoAccount = tempoAccount,
             onProgress = { pct -> progress = pct / 100f },
           )
         }

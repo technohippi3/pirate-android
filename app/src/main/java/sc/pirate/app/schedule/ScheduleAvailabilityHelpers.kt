@@ -1,11 +1,5 @@
 package sc.pirate.app.schedule
 
-import android.app.Activity
-import android.content.Context
-import android.content.ContextWrapper
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
-import sc.pirate.app.tempo.TempoSessionKeyApi
 import java.math.BigDecimal
 import java.math.RoundingMode
 import java.text.SimpleDateFormat
@@ -192,49 +186,4 @@ internal fun addDaysKeepingLocalMidnight(
   cal.timeInMillis = baseDayMillis
   cal.add(Calendar.DAY_OF_MONTH, days)
   return cal.timeInMillis
-}
-
-internal fun Context.findActivity(): Activity? {
-  var current: Context? = this
-  while (current is ContextWrapper) {
-    if (current is Activity) return current
-    current = current.baseContext
-  }
-  return null
-}
-
-internal suspend fun ensureScheduleSessionKey(
-  context: Context,
-  account: TempoPasskeyManager.PasskeyAccount,
-  onShowMessage: (String) -> Unit,
-): SessionKeyManager.SessionKey? {
-  val existing =
-    SessionKeyManager.load(context)?.takeIf {
-      SessionKeyManager.isValid(it, ownerAddress = account.address)
-    }
-  if (existing != null) return existing
-
-  val activity = context.findActivity()
-  if (activity == null) {
-    onShowMessage("Unable to open passkey prompt in this context.")
-    return null
-  }
-
-  onShowMessage("Authorizing Tempo session key...")
-  val auth =
-    TempoSessionKeyApi.authorizeSessionKey(
-      activity = activity,
-      account = account,
-    )
-  val authorized =
-    auth.sessionKey?.takeIf {
-      auth.success && SessionKeyManager.isValid(it, ownerAddress = account.address)
-    }
-  if (authorized == null) {
-    onShowMessage(auth.error ?: "Session key authorization failed.")
-    return null
-  }
-
-  onShowMessage("Session key authorized.")
-  return authorized
 }

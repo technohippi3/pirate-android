@@ -51,12 +51,8 @@ import com.adamglin.phosphoricons.Regular
 import com.adamglin.phosphoricons.regular.MusicNote
 import com.adamglin.phosphoricons.regular.X
 import sc.pirate.app.assistant.VoiceCallState
-import sc.pirate.app.assistant.getTempoWorkerAuthSession
+import sc.pirate.app.assistant.getWorkerAuthSession
 import sc.pirate.app.resolvePublicProfileIdentity
-import sc.pirate.app.tempo.SessionKeyAuthorizationProgress
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
-import sc.pirate.app.tempo.TempoSessionKeyApi
 import sc.pirate.app.ui.PirateIconButton
 import sc.pirate.app.ui.PiratePrimaryButton
 import sc.pirate.app.util.shortAddress
@@ -107,14 +103,13 @@ internal fun LiveRoomScreen(
   initialListenerCount: Int?,
   initialStatus: String?,
   ownerEthAddress: String?,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
   hostActivity: FragmentActivity,
   onBack: () -> Unit,
   onShowMessage: (String) -> Unit,
 ) {
   val appContext = hostActivity.applicationContext
   val scope = rememberCoroutineScope()
-  val normalizedTempoAddress = tempoAccount?.address?.trim()?.lowercase()?.ifBlank { null }
+  val normalizedOwnerAddress = ownerEthAddress?.trim()?.lowercase()?.ifBlank { null }
   val initialHostAddress = initialHostWallet?.trim()?.lowercase()?.ifBlank { null }
 
   var roomInfo by remember(roomId) { mutableStateOf<LiveRoomPublicInfo?>(null) }
@@ -138,7 +133,7 @@ internal fun LiveRoomScreen(
   var tokenRenewJob by remember(roomId) { mutableStateOf<Job?>(null) }
   var activeJoinMode by remember(roomId) { mutableStateOf<LiveRoomJoinMode?>(null) }
 
-  var authToken by remember(roomId, normalizedTempoAddress) { mutableStateOf<String?>(null) }
+  var authToken by remember(roomId, normalizedOwnerAddress) { mutableStateOf<String?>(null) }
   val videoScaleMode =
     remember(videoScaleModeName) {
       LiveRoomVideoScaleMode.entries.firstOrNull { it.name == videoScaleModeName }
@@ -173,19 +168,14 @@ internal fun LiveRoomScreen(
       if (!forceRefresh) {
         authToken?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
       }
-      val account = tempoAccount ?: return null
-      val sessionKey =
-        SessionKeyManager.load(hostActivity)?.takeIf {
-          SessionKeyManager.isValid(it, ownerAddress = account.address) &&
-            it.keyAuthorization?.isNotEmpty() == true
-        } ?: return null
+      val owner = normalizedOwnerAddress ?: return null
       return try {
         val base = sc.pirate.app.BuildConfig.VOICE_CONTROL_PLANE_URL.trim().trimEnd('/')
         val auth =
-          getTempoWorkerAuthSession(
+          getWorkerAuthSession(
+            appContext = appContext,
             workerUrl = base,
-            walletAddress = account.address,
-            sessionKey = sessionKey,
+            userAddress = owner,
           )
         authToken = auth.token
         auth.token
@@ -196,7 +186,7 @@ internal fun LiveRoomScreen(
     val token =
       when {
         cachedToken != null -> cachedToken
-        normalizedTempoAddress == null -> null
+        normalizedOwnerAddress == null -> null
         else -> loadAuthToken(forceRefresh = false)
       }
 
@@ -206,7 +196,7 @@ internal fun LiveRoomScreen(
           LiveRoomEntryApi.fetchPublicInfo(roomId = roomId, bearerToken = token)
         } catch (error: Throwable) {
           val apiError = error as? LiveRoomApiException
-          if (token != null && apiError?.status == 401 && normalizedTempoAddress != null) {
+          if (token != null && apiError?.status == 401 && normalizedOwnerAddress != null) {
             val refreshed = loadAuthToken(forceRefresh = true)
             if (!refreshed.isNullOrBlank()) {
               LiveRoomEntryApi.fetchPublicInfo(roomId = roomId, bearerToken = refreshed)
@@ -232,39 +222,14 @@ internal fun LiveRoomScreen(
       authToken?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
     }
 
-    val account = tempoAccount ?: throw IllegalStateException("Sign in with Tempo passkey to continue.")
-    val sessionKey =
-      SessionKeyManager.load(hostActivity)?.takeIf {
-        SessionKeyManager.isValid(it, ownerAddress = account.address) &&
-          it.keyAuthorization?.isNotEmpty() == true
-      } ?: run {
-        val authorization = TempoSessionKeyApi.authorizeSessionKey(
-          activity = hostActivity,
-          account = account,
-          onProgress = { progress ->
-            when (progress) {
-              SessionKeyAuthorizationProgress.SIGNATURE_1 ->
-                onShowMessage("Authorize your Tempo session key.")
-              SessionKeyAuthorizationProgress.SIGNATURE_2 ->
-                onShowMessage("Approve Tempo session activation.")
-              SessionKeyAuthorizationProgress.FINALIZING ->
-                onShowMessage("Finalizing Tempo session key...")
-            }
-          },
-        )
-        authorization.sessionKey
-          ?.takeIf { authorization.success }
-          ?: throw IllegalStateException(
-            authorization.error ?: "Failed to authorize Tempo session key.",
-          )
-      }
+    val owner = normalizedOwnerAddress ?: throw IllegalStateException("Sign in to continue.")
 
     val base = sc.pirate.app.BuildConfig.VOICE_CONTROL_PLANE_URL.trim().trimEnd('/')
     val auth =
-      getTempoWorkerAuthSession(
+      getWorkerAuthSession(
+        appContext = appContext,
         workerUrl = base,
-        walletAddress = account.address,
-        sessionKey = sessionKey,
+        userAddress = owner,
       )
     authToken = auth.token
     return auth.token
@@ -523,7 +488,9 @@ internal fun LiveRoomScreen(
       actionBusy = true
       transientError = null
       try {
-        val account = tempoAccount ?: throw IllegalStateException("Sign in with Tempo passkey to buy tickets.")
+        if (normalizedOwnerAddress == null) {
+          throw IllegalStateException("Sign in to buy tickets.")
+        }
         val ticketStart = ticketStartWithRetry()
 
         if (ticketStart.idempotent || ticketStart.ticketPurchasedAt != null) {
@@ -542,18 +509,11 @@ internal fun LiveRoomScreen(
           ?: throw IllegalStateException("Ticket payment requirements missing.")
 
         onShowMessage("Submitting ticket payment...")
-        val sessionKey =
-          SessionKeyManager.load(hostActivity)?.takeIf {
-            SessionKeyManager.isValid(it, ownerAddress = account.address) &&
-              it.keyAuthorization?.isNotEmpty() == true
-          }
         val txHash =
           submitLiveTicketPayment(
-            activity = hostActivity,
-            account = account,
+            context = appContext,
+            roomId = roomId,
             requirements = paymentRequirements,
-            sessionKey = sessionKey,
-            preferSelfPay = false,
           )
 
         onShowMessage("Confirming payment...")
@@ -725,10 +685,10 @@ internal fun LiveRoomScreen(
         "Ticket confirmed. You can join once the host starts the room."
       callState == VoiceCallState.Connected && isBroadcastLive && !remoteVideoActive ->
         "Live now in audio-only mode."
-      isBroadcastLive && isGatedRoom && normalizedTempoAddress == null ->
-        "Sign in with Tempo to access this room."
+      isBroadcastLive && isGatedRoom && normalizedOwnerAddress == null ->
+        "Sign in to access this room."
       isBroadcastLive && isGatedRoom && info?.canEnter == false ->
-        "This room requires a qualifying Tempo NFT."
+        "This room requires a qualifying access asset."
       !isBroadcastLive && isTicketSalesNotStarted ->
         info?.salesStartAt?.let { "Ticket sales open ${formatEpochLocal(it)}" } ?: null
       !isBroadcastLive && isTicketSalesClosed ->
@@ -1239,7 +1199,7 @@ private fun resolveRoomErrorMessage(error: Throwable): String {
       "room_not_live" -> "Room is not live yet."
       "wallet_not_linked" -> "Link the wallet that holds the required NFT."
       "ownership_not_found" -> "Required NFT ownership was not found."
-      "policy_not_satisfied" -> "This Tempo account does not satisfy the NFT gate."
+      "policy_not_satisfied" -> "This wallet does not satisfy the NFT gate."
       "ticket_sales_not_started" -> "Ticket sales have not started yet."
       "ticket_sales_not_open" -> "Ticket sales are not open right now."
       "ticket_sales_closed" -> "Ticket sales are closed for this room."

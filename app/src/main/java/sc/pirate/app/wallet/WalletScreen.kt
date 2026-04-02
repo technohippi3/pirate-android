@@ -1,10 +1,6 @@
 package sc.pirate.app.wallet
 
-import com.adamglin.PhosphorIcons
-import com.adamglin.phosphoricons.Regular
-import com.adamglin.phosphoricons.regular.*
 import android.util.Log
-
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -13,7 +9,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,7 +18,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import sc.pirate.app.ui.PirateIconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
@@ -44,14 +38,20 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.fragment.app.FragmentActivity
+import com.adamglin.PhosphorIcons
+import com.adamglin.phosphoricons.Regular
+import com.adamglin.phosphoricons.regular.ArrowClockwise
+import com.adamglin.phosphoricons.regular.Copy
+import sc.pirate.app.PirateChainConfig
 import sc.pirate.app.assistant.AssistantQuotaApi
 import sc.pirate.app.assistant.AssistantQuotaStatus
 import sc.pirate.app.assistant.formatCallSeconds
 import sc.pirate.app.store.StudyCreditsApi
 import sc.pirate.app.store.StudyCreditsQuote
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoClient
-import sc.pirate.app.tempo.TempoPasskeyManager
+import sc.pirate.app.store.formatStoreTokenAmount
+import sc.pirate.app.store.readErc20BalanceRaw
+import sc.pirate.app.store.tokenSymbolForAddress
+import sc.pirate.app.ui.PirateIconButton
 import sc.pirate.app.ui.PirateMobileHeader
 import sc.pirate.app.ui.PiratePrimaryButton
 import java.math.BigDecimal
@@ -63,20 +63,15 @@ import kotlinx.coroutines.withContext
 
 private val CREDIT_PACKS = listOf(5, 10, 25)
 
-private fun formatUsd(rawAmount: BigInteger, decimals: Int): String {
+private fun formatUsd(
+  rawAmount: BigInteger,
+  decimals: Int,
+): String {
   if (rawAmount <= BigInteger.ZERO) return "0.00"
   val safeDecimals = decimals.coerceAtLeast(0)
   val divisor = BigDecimal.TEN.pow(safeDecimals)
   val value = rawAmount.toBigDecimal().divide(divisor, 2, RoundingMode.DOWN)
   return value.setScale(2, RoundingMode.DOWN).toPlainString()
-}
-
-private fun formatTokenAmount(rawAmount: BigInteger): String {
-  return TempoClient.formatUnits(rawAmount = rawAmount, decimals = 6, maxFractionDigits = 2)
-}
-
-private fun tokenSymbolForAddress(address: String): String {
-  return if (address.equals(TempoClient.ALPHA_USD, ignoreCase = true)) "αUSD" else "Token"
 }
 
 private data class WalletAssetBalance(
@@ -92,7 +87,6 @@ fun WalletScreen(
   activity: FragmentActivity,
   isAuthenticated: Boolean,
   walletAddress: String?,
-  account: TempoPasskeyManager.PasskeyAccount?,
   onClose: () -> Unit,
   onShowMessage: (String) -> Unit,
   onCreditsPurchased: (() -> Unit)? = null,
@@ -113,13 +107,13 @@ fun WalletScreen(
   var creditsRefreshNonce by remember { mutableIntStateOf(0) }
   var assistantQuota by remember { mutableStateOf<AssistantQuotaStatus?>(null) }
 
-  val paymentTokenSymbol = creditsQuote?.paymentToken?.let(::tokenSymbolForAddress) ?: "αUSD"
+  val paymentTokenSymbol = creditsQuote?.paymentToken?.let(::tokenSymbolForAddress) ?: tokenSymbolForAddress(PirateChainConfig.STORY_STABLE_TOKEN)
   val totalCostRaw = creditsQuote?.creditPrice?.multiply(BigInteger.valueOf(selectedCredits.toLong())) ?: BigInteger.ZERO
-  val totalCostDisplay = creditsQuote?.let { "${formatTokenAmount(totalCostRaw)} $paymentTokenSymbol" } ?: "--"
-  val creditPriceDisplay = creditsQuote?.let { "${formatTokenAmount(it.creditPrice)} $paymentTokenSymbol" } ?: "--"
-  val walletBalanceDisplay = creditsQuote?.let { "${formatTokenAmount(it.tokenBalance)} $paymentTokenSymbol" } ?: "--"
+  val totalCostDisplay = creditsQuote?.let { "${formatStoreTokenAmount(totalCostRaw)} $paymentTokenSymbol" } ?: "--"
+  val creditPriceDisplay = creditsQuote?.let { "${formatStoreTokenAmount(it.creditPrice)} $paymentTokenSymbol" } ?: "--"
+  val walletBalanceDisplay = creditsQuote?.let { "${formatStoreTokenAmount(it.tokenBalance)} $paymentTokenSymbol" } ?: "--"
   val hasSufficientTokenBalance = creditsQuote?.tokenBalance?.let { it >= totalCostRaw } ?: false
-  val canBuyCredits = account != null && creditsQuote != null && !loadingCredits && !buyingCredits && hasSufficientTokenBalance
+  val canBuyCredits = !walletAddress.isNullOrBlank() && creditsQuote != null && !loadingCredits && !buyingCredits && hasSufficientTokenBalance
 
   LaunchedEffect(isAuthenticated, walletAddress, balanceRefreshNonce, creditsRefreshNonce) {
     val address = walletAddress?.trim()
@@ -134,13 +128,14 @@ fun WalletScreen(
     balanceError = null
     runCatching {
       withContext(Dispatchers.IO) {
-        val alphaRaw = TempoClient.getErc20BalanceRaw(address = address, token = TempoClient.ALPHA_USD)
+        val stableToken = creditsQuote?.paymentToken ?: PirateChainConfig.STORY_STABLE_TOKEN
+        val stableRaw = readErc20BalanceRaw(address = address, token = stableToken)
         listOf(
           WalletAssetBalance(
-            id = "tempo:${TempoClient.ALPHA_USD.lowercase()}",
-            symbol = tokenSymbolForAddress(TempoClient.ALPHA_USD),
-            network = "Tempo",
-            rawAmount = alphaRaw,
+            id = "story:${stableToken.lowercase()}",
+            symbol = tokenSymbolForAddress(stableToken),
+            network = "Story",
+            rawAmount = stableRaw,
             decimals = 6,
           ),
         )
@@ -155,8 +150,9 @@ fun WalletScreen(
     loadingBalances = false
   }
 
-  LaunchedEffect(isAuthenticated, account?.address, creditsRefreshNonce) {
-    if (!isAuthenticated || account == null) {
+  LaunchedEffect(isAuthenticated, walletAddress, creditsRefreshNonce) {
+    val address = walletAddress?.trim()
+    if (!isAuthenticated || address.isNullOrBlank()) {
       creditsQuote = null
       loadingCredits = false
       creditsError = null
@@ -165,14 +161,14 @@ fun WalletScreen(
     loadingCredits = true
     creditsError = null
     creditsQuote =
-      runCatching { StudyCreditsApi.quote(account.address) }
+      runCatching { StudyCreditsApi.quote(address) }
         .onFailure { err ->
           creditsError = err.message ?: "Unable to load credits."
-          Log.e("WalletScreen", "Failed to refresh credits quote for address=${account.address}", err)
+          Log.e("WalletScreen", "Failed to refresh credits quote for address=$address", err)
         }
         .getOrNull()
     assistantQuota =
-      runCatching { AssistantQuotaApi.fetchQuota(activity, account.address) }
+      runCatching { AssistantQuotaApi.fetchQuota(activity, address) }
         .getOrNull()
     loadingCredits = false
   }
@@ -334,19 +330,14 @@ fun WalletScreen(
                   text = "Buy",
                   loading = buyingCredits,
                   onClick = {
-                    val passkeyAccount = account ?: return@PiratePrimaryButton
                     if (!canBuyCredits) return@PiratePrimaryButton
                     scope.launch {
                       buyingCredits = true
                       val result =
                         StudyCreditsApi.buy(
-                          activity = activity,
-                          account = passkeyAccount,
+                          context = activity.applicationContext,
+                          ownerAddress = address,
                           creditCount = selectedCredits,
-                          sessionKey =
-                            SessionKeyManager.load(activity)?.takeIf {
-                              SessionKeyManager.isValid(it, ownerAddress = passkeyAccount.address)
-                            },
                         )
                       buyingCredits = false
                       if (!result.success) {

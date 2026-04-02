@@ -8,9 +8,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.fragment.app.FragmentActivity
-import sc.pirate.app.tempo.TempoClient
-import sc.pirate.app.tempo.TempoPasskeyManager
+import androidx.compose.ui.platform.LocalContext
+import sc.pirate.app.PirateChainConfig
 import java.math.BigInteger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -26,23 +25,19 @@ private const val TIER3_PRICE = "25.00"
 internal data class SelectableName(
   val label: String,
   val price: String,
-  val tier: String, // "premium", "standard", or "policy"
+  val tier: String,
   val isPremiumListing: Boolean = true,
   val premiumQuote: PremiumStoreQuote? = null,
 )
 
-private fun formatAUsd(rawAmount: BigInteger): String {
-  return TempoClient.formatUnits(rawAmount = rawAmount, decimals = 6, maxFractionDigits = 2)
-}
-
 @Composable
 fun NameStoreScreen(
-  activity: FragmentActivity,
   isAuthenticated: Boolean,
-  account: TempoPasskeyManager.PasskeyAccount?,
+  walletAddress: String?,
   onClose: () -> Unit,
   onShowMessage: (String) -> Unit,
 ) {
+  val appContext = LocalContext.current.applicationContext
   val scope = rememberCoroutineScope()
 
   var selectedTld by remember { mutableStateOf("pirate") }
@@ -61,7 +56,8 @@ fun NameStoreScreen(
 
   val customNormalized = PremiumNameStoreApi.normalizeLabel(customInput)
   val customValid = PremiumNameStoreApi.isValidLabel(customNormalized)
-  val canBuy = isAuthenticated && account != null && selectedName != null && !buying
+  val paymentSymbol = tokenSymbolForAddress(PirateChainConfig.BASE_SEPOLIA_USDC)
+  val canBuy = isAuthenticated && !walletAddress.isNullOrBlank() && selectedName != null && !buying
 
   LaunchedEffect(customNormalized, selectedTld) {
     customResult = null
@@ -83,7 +79,7 @@ fun NameStoreScreen(
     if (premiumQuote != null) {
       val listing = premiumQuote.listing
       val isListed = listing.enabled && listing.durationSeconds > 0L
-      val priceDisplay = if (isListed) "${formatAUsd(listing.price)} αUSD" else "Policy quote on buy"
+      val priceDisplay = if (isListed) "${formatStoreTokenAmount(listing.price)} $paymentSymbol" else "Policy quote on buy"
       val tier = if (isListed) "premium" else "policy"
       val name =
         SelectableName(
@@ -101,8 +97,8 @@ fun NameStoreScreen(
     checkingCustom = false
   }
 
-  LaunchedEffect(isAuthenticated, account?.address, selectedTld, refreshNonce) {
-    if (!isAuthenticated || account == null) {
+  LaunchedEffect(isAuthenticated, walletAddress, selectedTld, refreshNonce) {
+    if (!isAuthenticated || walletAddress.isNullOrBlank()) {
       availableNames = emptyList()
       loadingNames = false
       return@LaunchedEffect
@@ -123,7 +119,7 @@ fun NameStoreScreen(
             results.add(
               SelectableName(
                 label = label,
-                price = "${formatAUsd(quote.listing.price)} αUSD",
+                price = "${formatStoreTokenAmount(quote.listing.price)} $paymentSymbol",
                 tier = tier,
                 isPremiumListing = true,
                 premiumQuote = quote,
@@ -140,7 +136,7 @@ fun NameStoreScreen(
 
   NameStoreContent(
     isAuthenticated = isAuthenticated,
-    hasAccount = account != null,
+    hasAccount = !walletAddress.isNullOrBlank(),
     selectedTld = selectedTld,
     customInput = customInput,
     checkingCustom = checkingCustom,
@@ -173,35 +169,34 @@ fun NameStoreScreen(
       customResult = null
       customError = null
     },
-    onBuy =
-      buy@{
-        val name = selectedName ?: return@buy
-        val passkeyAccount = account ?: return@buy
-        if (!canBuy) return@buy
-        scope.launch {
-          buying = true
-          val buyResult =
-            PremiumNameStoreApi.buy(
-              activity = activity,
-              account = passkeyAccount,
-              label = name.label,
-              tld = selectedTld,
-              maxPrice =
-                name.premiumQuote?.listing
-                  ?.takeIf { it.enabled && it.durationSeconds > 0L }
-                  ?.price,
-            )
-          buying = false
-          if (!buyResult.success) {
-            onShowMessage(buyResult.error ?: "Purchase failed.")
-            return@launch
-          }
-          onShowMessage("Purchased ${name.label}.$selectedTld")
-          selectedName = null
-          customInput = ""
-          customResult = null
-          refreshNonce += 1
+    onBuy = buy@{
+      val ownerAddress = walletAddress?.trim()?.takeIf { it.isNotEmpty() } ?: return@buy
+      val name = selectedName ?: return@buy
+      if (!canBuy) return@buy
+      scope.launch {
+        buying = true
+        val buyResult =
+          PremiumNameStoreApi.buy(
+            context = appContext,
+            ownerAddress = ownerAddress,
+            label = name.label,
+            tld = selectedTld,
+            maxPrice =
+              name.premiumQuote?.listing
+                ?.takeIf { it.enabled && it.durationSeconds > 0L }
+                ?.price,
+          )
+        buying = false
+        if (!buyResult.success) {
+          onShowMessage(buyResult.error ?: "Purchase failed.")
+          return@launch
         }
-      },
+        onShowMessage("Purchased ${name.label}.$selectedTld")
+        selectedName = null
+        customInput = ""
+        customResult = null
+        refreshNonce += 1
+      }
+    },
   )
 }

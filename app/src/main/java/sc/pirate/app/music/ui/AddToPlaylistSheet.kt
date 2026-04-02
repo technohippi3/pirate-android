@@ -4,7 +4,6 @@ import com.adamglin.PhosphorIcons
 import com.adamglin.phosphoricons.Regular
 import com.adamglin.phosphoricons.regular.*
 
-import androidx.fragment.app.FragmentActivity
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -42,7 +41,6 @@ import coil.compose.AsyncImage
 import androidx.compose.ui.platform.LocalContext
 import sc.pirate.app.music.MusicTrack
 import sc.pirate.app.music.PlaylistDisplayItem
-import sc.pirate.app.tempo.TempoPasskeyManager
 import sc.pirate.app.ui.PiratePrimaryButton
 import sc.pirate.app.ui.PirateSheetTitle
 import kotlinx.coroutines.launch
@@ -54,8 +52,6 @@ fun AddToPlaylistSheet(
   track: MusicTrack?,
   isAuthenticated: Boolean,
   ownerEthAddress: String?,
-  tempoAccount: TempoPasskeyManager.PasskeyAccount?,
-  hostActivity: FragmentActivity?,
   onClose: () -> Unit,
   onShowMessage: (String) -> Unit,
   onSuccess: (playlistId: String, playlistName: String, trackAdded: Boolean) -> Unit,
@@ -131,8 +127,6 @@ fun AddToPlaylistSheet(
                     playlistName = name,
                     isAuthenticated = isAuthenticated,
                     ownerEthAddress = ownerEthAddress,
-                    tempoAccount = tempoAccount,
-                    hostActivity = hostActivity,
                     onShowMessage = onShowMessage,
                   )
                 if (result != null) {
@@ -183,8 +177,6 @@ fun AddToPlaylistSheet(
                     track = track,
                     isAuthenticated = isAuthenticated,
                     ownerEthAddress = ownerEthAddress,
-                    tempoAccount = tempoAccount,
-                    hostActivity = hostActivity,
                     onShowMessage = onShowMessage,
                   )
                 if (result != null) {

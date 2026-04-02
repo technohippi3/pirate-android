@@ -3,12 +3,9 @@ package sc.pirate.app.music
 import android.content.Context
 import android.net.Uri
 import android.util.Log
-import androidx.fragment.app.FragmentActivity
 import sc.pirate.app.BuildConfig
 import sc.pirate.app.player.PlayerLyricsRepository
 import sc.pirate.app.player.PlayerPresentationRepository
-import sc.pirate.app.tempo.SessionKeyManager
-import sc.pirate.app.tempo.TempoPasskeyManager
 import kotlinx.coroutines.delay
 import org.json.JSONObject
 import java.math.BigDecimal
@@ -24,7 +21,7 @@ import kotlin.math.ceil
  * 3) Run preflight checks
  * 4) Upload Story metadata JSON (IP + NFT metadata)
  * 5) Register on Story
- * 6) Finalize on Tempo and persist purchase asset metadata
+ * 6) Finalize on Story and persist purchase asset metadata
  */
 object SongPublishService {
 
@@ -158,8 +155,6 @@ object SongPublishService {
     context: Context,
     formData: SongFormData,
     ownerAddress: String,
-    hostActivity: FragmentActivity?,
-    tempoAccount: TempoPasskeyManager.PasskeyAccount?,
     onProgress: (Int) -> Unit,
   ): PublishResult {
     val userAddress = songPublishNormalizeUserAddress(ownerAddress)
@@ -294,17 +289,6 @@ object SongPublishService {
 
     onProgress(35)
 
-    val signingActivity = hostActivity ?: throw IllegalStateException("Host activity is required for Tempo publish signing")
-    val account = tempoAccount ?: throw IllegalStateException("Publishing is not available in this Android build yet.")
-    if (!account.address.equals(userAddress, ignoreCase = true)) {
-      throw IllegalStateException("Active passkey account does not match publish owner")
-    }
-    val publishSessionKey = songPublishEnsureAuthorizedSessionKey(
-      context = context,
-      activity = signingActivity,
-      account = account,
-    )
-
     if (!resumeFromRegistration) {
       val artifactsResponse = songPublishStageArtifactsForMusicPublish(
         jobId = jobId,
@@ -353,6 +337,7 @@ object SongPublishService {
           put("fingerprint", "sha256:$audioSha256")
         }
         val response = songPublishPostJsonToMusicApi(
+          context = context,
           path = "/api/music/preflight",
           userAddress = userAddress,
           body = preflightBody,
@@ -438,6 +423,7 @@ object SongPublishService {
       }
 
       val metadataResponse = songPublishUploadMetadataMusicPublish(
+        context = context,
         jobId = jobId,
         userAddress = userAddress,
         ipMetadataJson = ipMetadataJson,
@@ -467,6 +453,7 @@ object SongPublishService {
       )
 
       var registerResponse = songPublishRegisterMusicPublish(
+        context = context,
         jobId = jobId,
         userAddress = userAddress,
         recipient = ownerAddress,
@@ -478,14 +465,14 @@ object SongPublishService {
         commercialRevShare = formData.revShare,
         donationPolicy = buildDonationPolicy(formData),
         defaultMintingFee = "0",
-        sessionKey = publishSessionKey,
       )
       registerResponse = submitPreparedStoryIntentIfNeeded(
+        context = context,
         response = registerResponse,
         userAddress = userAddress,
-        sessionKey = publishSessionKey,
-      ) { operationId, userSig, intent, keyAuthorization ->
+      ) { operationId, userSig, intent ->
         songPublishRegisterMusicPublish(
+          context = context,
           jobId = jobId,
           userAddress = userAddress,
           recipient = ownerAddress,
@@ -497,11 +484,9 @@ object SongPublishService {
           commercialRevShare = formData.revShare,
           donationPolicy = buildDonationPolicy(formData),
           defaultMintingFee = "0",
-          sessionKey = publishSessionKey,
           storyIntentOperationId = operationId,
           storyIntentUserSig = userSig,
           storyIntent = intent,
-          storyIntentKeyAuthorization = keyAuthorization,
         )
       }
       if (registerResponse.status !in 200..299) {
@@ -512,23 +497,22 @@ object SongPublishService {
     var confirmed = false
     for (attempt in 1..REGISTER_CONFIRM_MAX_RETRIES) {
       var confirmResponse = songPublishConfirmRegisterMusicPublish(
+        context = context,
         jobId = jobId,
         userAddress = userAddress,
-        sessionKey = publishSessionKey,
       )
       confirmResponse = submitPreparedStoryIntentIfNeeded(
+        context = context,
         response = confirmResponse,
         userAddress = userAddress,
-        sessionKey = publishSessionKey,
-      ) { operationId, userSig, intent, keyAuthorization ->
+      ) { operationId, userSig, intent ->
         songPublishConfirmRegisterMusicPublish(
+          context = context,
           jobId = jobId,
           userAddress = userAddress,
-          sessionKey = publishSessionKey,
           storyIntentOperationId = operationId,
           storyIntentUserSig = userSig,
           storyIntent = intent,
-          storyIntentKeyAuthorization = keyAuthorization,
         )
       }
       if (confirmResponse.status == 202) {
@@ -555,9 +539,9 @@ object SongPublishService {
 
     onProgress(88)
 
-    val coordinatorAddress = BuildConfig.TEMPO_PUBLISH_COORDINATOR.trim()
+    val coordinatorAddress = BuildConfig.STORY_PUBLISH_COORDINATOR.trim()
     if (coordinatorAddress.isBlank() || coordinatorAddress.equals("0x0000000000000000000000000000000000000000", ignoreCase = true)) {
-      throw IllegalStateException("Tempo publish coordinator is not configured in the app")
+      throw IllegalStateException("Story publish coordinator is not configured in the app")
     }
     val datasetOwner = userAddress
     val algo = 1
@@ -571,10 +555,8 @@ object SongPublishService {
     val stagedAudioPieceCid =
       stagedAudioId?.trim()?.ifBlank { null }
         ?: throw IllegalStateException("Audio piece CID missing from staged upload")
-    val tempoSignedTx = songPublishBuildSignedTempoPublishTx(
+    val signedTx = songPublishBuildSignedPublishTx(
       context = context,
-      activity = signingActivity,
-      account = account,
       coordinatorAddress = coordinatorAddress,
       ownerAddress = userAddress,
       title = formData.title,
@@ -590,13 +572,14 @@ object SongPublishService {
     )
 
     val finalizeResponse = songPublishFinalizeMusicPublish(
+      context = context,
       jobId = jobId,
       userAddress = userAddress,
       title = formData.title,
       artist = formData.artist,
       durationSec = durationSec,
       album = "",
-      tempoSignedTx = tempoSignedTx,
+      signedTx = signedTx,
       purchasePrice = purchasePriceUnits,
       maxSupply = maxSupply,
     )
@@ -606,12 +589,12 @@ object SongPublishService {
           "Finalize endpoint not found. Backend is outdated; deploy latest api-core.",
         )
       }
-      throw IllegalStateException(songPublishErrorMessageFromApi("Tempo finalize", finalizeResponse))
+      throw IllegalStateException(songPublishErrorMessageFromApi("Publish finalize", finalizeResponse))
     }
-    val finalizeJob = songPublishRequireJobObject("Tempo finalize", finalizeResponse)
+    val finalizeJob = songPublishRequireJobObject("Publish finalize", finalizeResponse)
     val finalizedStatus = finalizeJob.optString("status", "").trim()
     if (finalizedStatus != "registered") {
-      throw IllegalStateException("Tempo finalize did not complete (status=$finalizedStatus)")
+      throw IllegalStateException("Publish finalize did not complete (status=$finalizedStatus)")
     }
     val finalizeCached = finalizeResponse.json
       ?.optJSONObject("registration")
@@ -624,7 +607,7 @@ object SongPublishService {
       ?.trim()
       ?.ifBlank { null }
       ?: finalizeJob.optString("publishId", "").trim().ifBlank { null }
-      ?: throw IllegalStateException("Tempo finalize missing publishId")
+      ?: throw IllegalStateException("Publish finalize missing publishId")
     val canonicalTrackId = finalizeResponse.json
       ?.optJSONObject("registration")
       ?.optString("trackId", "")
@@ -647,19 +630,17 @@ object SongPublishService {
       ?.trim()
       ?.ifBlank { null }
 
-    val presentationRegistryAddress = BuildConfig.TEMPO_TRACK_PRESENTATION_REGISTRY.trim()
+    val presentationRegistryAddress = BuildConfig.STORY_TRACK_PRESENTATION_REGISTRY.trim()
     if (presentationRegistryAddress.isBlank() || presentationRegistryAddress.equals("0x0000000000000000000000000000000000000000", ignoreCase = true)) {
-      throw IllegalStateException("Track presentation registry is not configured in the app")
+      throw IllegalStateException("Story track presentation registry is not configured in the app")
     }
-    val presentationDelegateAddress = BuildConfig.TEMPO_TRACK_PRESENTATION_DELEGATE.trim()
+    val presentationDelegateAddress = BuildConfig.STORY_TRACK_PRESENTATION_DELEGATE.trim()
     if (presentationDelegateAddress.isBlank() || presentationDelegateAddress.equals("0x0000000000000000000000000000000000000000", ignoreCase = true)) {
-      throw IllegalStateException("Track presentation delegate is not configured in the app")
+      throw IllegalStateException("Story track presentation delegate is not configured in the app")
     }
     val delegateExpiresAtSec = (System.currentTimeMillis() / 1_000L) + TRACK_PRESENTATION_DELEGATE_TTL_SECONDS
-    val presentationDelegateSignedTx = songPublishBuildSignedTempoSetPublishDelegateTx(
+    val presentationDelegateSignedTx = songPublishBuildSignedSetPublishDelegateTx(
       context = context,
-      activity = signingActivity,
-      account = account,
       registryAddress = presentationRegistryAddress,
       ownerAddress = userAddress,
       publishId = publishId,
@@ -668,6 +649,7 @@ object SongPublishService {
       expiresAtSec = delegateExpiresAtSec,
     )
     val attachPresentationResponse = songPublishAttachPresentationForMusicPublish(
+      context = context,
       jobId = jobId,
       userAddress = userAddress,
       delegateSignedTx = presentationDelegateSignedTx,
@@ -746,23 +728,21 @@ object SongPublishService {
   }
 
   private suspend fun submitPreparedStoryIntentIfNeeded(
+    context: Context,
     response: SongPublishApiResponse,
     userAddress: String,
-    sessionKey: SessionKeyManager.SessionKey,
-    submit: (operationId: String, userSig: String, intent: Any, keyAuthorization: String) -> SongPublishApiResponse,
+    submit: suspend (operationId: String, userSig: String, intent: Any) -> SongPublishApiResponse,
   ): SongPublishApiResponse {
     val preparedIntent = songPublishParsePreparedStoryIntent(response) ?: return response
-    val keyAuthorization = songPublishKeyAuthorizationHex(sessionKey)
-    val userSig = songPublishSignDigestWithSessionKey(
-      sessionKey = sessionKey,
-      userAddress = userAddress,
-      digestHex = preparedIntent.typedDataDigest,
+    val userSig = sc.pirate.app.auth.privy.PrivyRelayClient.signTypedDataV4(
+      context = context,
+      expectedWalletAddress = userAddress,
+      typedData = preparedIntent.typedData,
     )
     return submit(
       preparedIntent.operationId,
       userSig,
       preparedIntent.intent,
-      keyAuthorization,
     )
   }
 
@@ -847,7 +827,7 @@ object SongPublishService {
   }
 
   internal fun formatTokenUnitsAsUsd(rawUnits: String): String {
-    // AlphaUSD uses 6 decimals.
+    // USDC-style token amounts use 6 decimals.
     val units = rawUnits.toBigIntegerOrNull() ?: return "—"
     val scale = BigDecimal.TEN.pow(PURCHASE_TOKEN_DECIMALS)
     val amount = BigDecimal(units).divide(scale, PURCHASE_TOKEN_DECIMALS, RoundingMode.DOWN)
