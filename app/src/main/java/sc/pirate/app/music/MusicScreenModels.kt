@@ -1,6 +1,31 @@
 package sc.pirate.app.music
 
-internal enum class MusicView { Home, Library, Shared, SharedPlaylistDetail, Playlists, PlaylistDetail, Search }
+internal enum class MusicView { Home, Library, Shared, SharedPlaylistDetail, Playlists, PlaylistDetail, DiscoverSearch }
+
+internal enum class MusicDiscoverySource {
+  Catalog,
+  Published,
+  Both,
+}
+
+internal enum class MusicDiscoveryLearnAvailability {
+  Available,
+  InsufficientLines,
+  NoReferents,
+  Error,
+}
+
+internal data class MusicDiscoveryResult(
+  val trackId: String,
+  val title: String,
+  val artist: String,
+  val album: String? = null,
+  val artworkUrl: String? = null,
+  val source: MusicDiscoverySource,
+  val isPublished: Boolean,
+  val learnAvailability: MusicDiscoveryLearnAvailability? = null,
+  val ownerAddress: String? = null,
+)
 
 internal data class AlbumCardModel(
   val trackId: String? = null,

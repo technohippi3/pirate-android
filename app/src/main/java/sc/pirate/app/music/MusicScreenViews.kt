@@ -6,6 +6,7 @@ import com.adamglin.phosphoricons.regular.*
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -13,10 +14,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
@@ -37,11 +41,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import coil.compose.AsyncImage
 import sc.pirate.app.music.ui.TrackItemRow
+import sc.pirate.app.theme.PiratePalette
 import sc.pirate.app.ui.PiratePrimaryButton
 import sc.pirate.app.ui.PirateSheetTitle
 
@@ -85,6 +92,7 @@ internal fun LibraryView(
   showSpotifyAccessPrompt: Boolean,
   onOpenSpotifyAccessSettings: () -> Unit,
   tracks: List<MusicTrack>,
+  searchQuery: String,
   scanning: Boolean,
   error: String?,
   currentTrackId: String?,
@@ -113,24 +121,36 @@ internal fun LibraryView(
   var filter by rememberSaveable { mutableStateOf(LibraryFilterOption.All) }
   var sort by rememberSaveable { mutableStateOf(LibrarySortOption.Recent) }
   var sortSheetOpen by rememberSaveable { mutableStateOf(false) }
+  val trimmedQuery = searchQuery.trim()
 
   val visibleTracks =
-    remember(tracks, filter, sort) {
-      val filtered =
+    remember(tracks, filter, sort, trimmedQuery) {
+      val sourceFiltered =
         when (filter) {
           LibraryFilterOption.All -> tracks
           LibraryFilterOption.LocalDevice -> tracks.filter(::isLocalDeviceLibraryTrack)
           LibraryFilterOption.Cloud -> tracks.filter(::isCloudLibraryTrack)
         }
+      val textFiltered =
+        if (trimmedQuery.isBlank()) {
+          sourceFiltered
+        } else {
+          val needle = trimmedQuery.lowercase()
+          sourceFiltered.filter { track ->
+            track.title.lowercase().contains(needle) ||
+              track.artist.lowercase().contains(needle) ||
+              track.album.lowercase().contains(needle)
+          }
+        }
       when (sort) {
-        LibrarySortOption.Recent -> filtered
-        LibrarySortOption.Title -> filtered.sortedBy { it.title.lowercase() }
+        LibrarySortOption.Recent -> textFiltered
+        LibrarySortOption.Title -> textFiltered.sortedBy { it.title.lowercase() }
         LibrarySortOption.Artist ->
-          filtered.sortedWith(
+          textFiltered.sortedWith(
             compareBy<MusicTrack> { it.artist.lowercase() }.thenBy { it.title.lowercase() },
           )
         LibrarySortOption.Duration ->
-          filtered.sortedWith(
+          textFiltered.sortedWith(
             compareByDescending<MusicTrack> { it.durationSec }.thenBy { it.title.lowercase() },
           )
       }
@@ -154,6 +174,18 @@ internal fun LibraryView(
       LibraryFilterOption.Cloud ->
         "Cloud shows your purchased songs and other songs available from cloud access."
       else -> null
+    }
+  val emptySearchBody =
+    if (trimmedQuery.isBlank()) {
+      emptyFilterBody
+    } else {
+      "Try a different title, artist, or album."
+    }
+  val emptyTitle =
+    if (trimmedQuery.isBlank()) {
+      emptyFilterTitle
+    } else {
+      "No songs match \"$trimmedQuery\""
     }
 
   Column(modifier = Modifier.fillMaxSize()) {
@@ -199,8 +231,8 @@ internal fun LibraryView(
 
     if (tracks.isNotEmpty() && visibleTracks.isEmpty()) {
       EmptyState(
-        title = emptyFilterTitle,
-        body = emptyFilterBody,
+        title = emptyTitle,
+        body = emptySearchBody,
         actionLabel = if (filter != LibraryFilterOption.All) "Show all songs" else null,
         onAction = if (filter != LibraryFilterOption.All) {
           { filter = LibraryFilterOption.All }
@@ -293,48 +325,65 @@ private fun SpotifyScrobbleAccessPrompt(
 }
 
 @Composable
-internal fun SearchView(
+internal fun DiscoverSearchView(
   query: String,
-  onQueryChange: (String) -> Unit,
-  tracks: List<MusicTrack>,
-  currentTrackId: String?,
-  isPlaying: Boolean,
-  onPlayTrack: (MusicTrack) -> Unit,
-  onTrackMenu: (MusicTrack) -> Unit,
+  results: List<MusicDiscoveryResult>,
+  loading: Boolean,
+  error: String?,
+  warning: String?,
+  onOpenResult: (MusicDiscoveryResult) -> Unit,
 ) {
-  val focusRequester = remember { FocusRequester() }
-  LaunchedEffect(Unit) { focusRequester.requestFocus() }
-
-  val q = query.trim()
-  val results =
-    remember(tracks, q) {
-      if (q.isBlank()) {
-        tracks
-      } else {
-        val needle = q.lowercase()
-        tracks.filter { t ->
-          t.title.lowercase().contains(needle) ||
-            t.artist.lowercase().contains(needle) ||
-            t.album.lowercase().contains(needle)
-        }
-      }
-    }
   val searchListState = rememberSaveable(saver = LazyListState.Saver) { LazyListState(0, 0) }
+  val trimmedQuery = query.trim()
 
   Column(modifier = Modifier.fillMaxSize()) {
-    OutlinedTextField(
-      value = query,
-      onValueChange = onQueryChange,
-      modifier =
-        Modifier
-          .fillMaxWidth()
-          .padding(horizontal = 16.dp, vertical = 10.dp)
-          .focusRequester(focusRequester),
-      singleLine = true,
-      placeholder = { Text("Search your library") },
-    )
+    if (!warning.isNullOrBlank()) {
+      Text(
+        text = warning,
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+      )
+    }
 
-    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+    if (!error.isNullOrBlank() && results.isEmpty()) {
+      EmptyState(
+        title = error,
+        body = "Try again in a moment.",
+        actionLabel = null,
+        onAction = null,
+      )
+      return
+    }
+
+    if (trimmedQuery.isBlank()) {
+      EmptyState(
+        title = "Search Pirate and Genius",
+        body = "Find published tracks and Genius catalog matches from one place.",
+        actionLabel = null,
+        onAction = null,
+      )
+      return
+    }
+
+    if (loading && results.isEmpty()) {
+      EmptyState(
+        title = "Searching...",
+        body = null,
+        actionLabel = null,
+        onAction = null,
+      )
+      return
+    }
+
+    if (!loading && results.isEmpty()) {
+      EmptyState(
+        title = "No songs found",
+        body = "Try a different song title, artist, or album.",
+        actionLabel = null,
+        onAction = null,
+      )
+      return
+    }
 
     LazyColumn(
       modifier = Modifier.fillMaxSize(),
@@ -342,12 +391,9 @@ internal fun SearchView(
       contentPadding = PaddingValues(bottom = 12.dp),
     ) {
       items(results, key = { libraryTrackKey(it) }) { t ->
-        TrackItemRow(
-          track = t,
-          isActive = currentTrackId == t.id,
-          isPlaying = currentTrackId == t.id && isPlaying,
-          onPress = { onPlayTrack(t) },
-          onMenuPress = { onTrackMenu(t) },
+        DiscoveryResultRow(
+          result = t,
+          onPress = { onOpenResult(t) },
         )
       }
     }
@@ -361,6 +407,114 @@ private fun libraryTrackKey(track: MusicTrack): String {
   if (contentId.isNotBlank()) return "cid:$contentId"
   if (uri.isNotBlank()) return "uri:$uri"
   return "id:$id|${track.title.trim()}|${track.artist.trim()}"
+}
+
+private fun libraryTrackKey(result: MusicDiscoveryResult): String =
+  "${result.source.name}:${result.trackId.trim()}"
+
+private fun discoverySourceLabel(source: MusicDiscoverySource): String =
+  when (source) {
+    MusicDiscoverySource.Catalog -> "On Genius"
+    MusicDiscoverySource.Published -> "On Pirate"
+    MusicDiscoverySource.Both -> "On Pirate + Genius"
+  }
+
+private fun discoveryLearnLabel(availability: MusicDiscoveryLearnAvailability?): String? =
+  when (availability) {
+    MusicDiscoveryLearnAvailability.Available -> "Learn ready"
+    MusicDiscoveryLearnAvailability.InsufficientLines -> "Lyrics incomplete"
+    MusicDiscoveryLearnAvailability.NoReferents -> "No annotations yet"
+    MusicDiscoveryLearnAvailability.Error -> "Learn unavailable"
+    null -> null
+  }
+
+@Composable
+private fun DiscoveryResultRow(
+  result: MusicDiscoveryResult,
+  onPress: () -> Unit,
+) {
+  val metaLine =
+    buildString {
+      append(discoverySourceLabel(result.source))
+      discoveryLearnLabel(result.learnAvailability)?.let { label ->
+        append(" • ")
+        append(label)
+      }
+    }
+  val albumLine =
+    buildString {
+      append(result.artist)
+      result.album?.trim()?.takeIf { it.isNotBlank() }?.let { album ->
+        append(" • ")
+        append(album)
+      }
+    }
+
+  Row(
+    modifier =
+      Modifier
+        .fillMaxWidth()
+        .clickable(onClick = onPress)
+        .padding(horizontal = 16.dp, vertical = 10.dp),
+    horizontalArrangement = Arrangement.spacedBy(12.dp),
+    verticalAlignment = Alignment.CenterVertically,
+  ) {
+    Box(
+      modifier =
+        Modifier
+          .size(48.dp)
+          .clip(RoundedCornerShape(8.dp))
+          .background(MaterialTheme.colorScheme.surfaceVariant),
+      contentAlignment = Alignment.Center,
+    ) {
+      if (!result.artworkUrl.isNullOrBlank()) {
+        AsyncImage(
+          model = result.artworkUrl,
+          contentDescription = "Song artwork",
+          contentScale = ContentScale.Crop,
+          modifier = Modifier.fillMaxSize(),
+        )
+      } else {
+        Icon(
+          PhosphorIcons.Regular.MusicNote,
+          contentDescription = null,
+          tint = PiratePalette.TextMuted,
+          modifier = Modifier.size(20.dp),
+        )
+      }
+    }
+
+    Column(modifier = Modifier.weight(1f)) {
+      Text(
+        text = result.title,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        color = MaterialTheme.colorScheme.onBackground,
+        fontWeight = FontWeight.Medium,
+        style = MaterialTheme.typography.bodyLarge,
+      )
+      Text(
+        text = albumLine,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        color = PiratePalette.TextMuted,
+        style = MaterialTheme.typography.bodyMedium,
+      )
+      Text(
+        text = metaLine,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        style = MaterialTheme.typography.bodySmall,
+      )
+    }
+
+    Icon(
+      PhosphorIcons.Regular.CaretRight,
+      contentDescription = null,
+      tint = MaterialTheme.colorScheme.onSurfaceVariant,
+    )
+  }
 }
 
 @Composable

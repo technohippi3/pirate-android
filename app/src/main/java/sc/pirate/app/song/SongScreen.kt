@@ -27,6 +27,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import sc.pirate.app.music.MusicLibrary
+import sc.pirate.app.music.MusicScreenCache
 import sc.pirate.app.music.MusicTrack
 import sc.pirate.app.music.TrackPreviewHistoryStore
 import sc.pirate.app.music.resolvePlaybackCoverUrl
@@ -74,7 +75,8 @@ fun SongScreen(
   var studyStatusTrackId by remember(trackId) { mutableStateOf<String?>(null) }
   var generateBusy by remember { mutableStateOf(false) }
   var generatedInSession by remember(trackId) { mutableStateOf(false) }
-  var localCoverUri by remember(trackId) { mutableStateOf<String?>(null) }
+  var localCoverUri by remember(trackId) { mutableStateOf<String?>(MusicScreenCache.getSongArtworkSeed(trackId)) }
+  var artistImageUrl by remember(trackId) { mutableStateOf<String?>(null) }
   var annotationsInsufficient by remember(trackId) { mutableStateOf(false) }
   var annotationsLineCount by remember(trackId) { mutableStateOf<Int?>(null) }
   var annotationsMinLineCount by remember(trackId) { mutableIntStateOf(6) }
@@ -229,7 +231,7 @@ fun SongScreen(
   }
 
   val effectiveTitle = stats?.title?.ifBlank { null } ?: initialTitle?.ifBlank { null } ?: "Song"
-  val effectiveArtist = stats?.artist?.ifBlank { null } ?: initialArtist?.ifBlank { null }
+  val effectiveArtist = stats?.artistLabel?.ifBlank { null } ?: initialArtist?.ifBlank { null }
 
   LaunchedEffect(resolvedTrackId, effectiveTitle, effectiveArtist, stats?.album, refreshKey) {
     runCatching {
@@ -249,19 +251,42 @@ fun SongScreen(
         album = stats?.album,
       )
     }.onSuccess { resolvedArtwork ->
+      if (!resolvedArtwork.isNullOrBlank()) {
+        MusicScreenCache.putSongArtworkSeed(trackId = resolvedTrackId, artworkUrl = resolvedArtwork)
+      }
       Log.d(
         "SongCover",
         "fallback/local resolve result coverUrl='${resolvedArtwork ?: "<none>"}' title='$effectiveTitle' artist='${effectiveArtist.orEmpty()}' trackId='$resolvedTrackId'",
       )
-      localCoverUri = resolvedArtwork
+      if (!resolvedArtwork.isNullOrBlank()) {
+        localCoverUri = resolvedArtwork
+      }
     }.onFailure {
       Log.w(
         "SongCover",
         "fallback/local resolve failed title='$effectiveTitle' artist='${effectiveArtist.orEmpty()}' trackId='$resolvedTrackId'",
       )
       localTracks = emptyList()
-      localCoverUri = null
+      if (localCoverUri.isNullOrBlank()) {
+        localCoverUri = null
+      }
     }
+  }
+
+  LaunchedEffect(effectiveArtist, userAddress, refreshKey) {
+    val artistName = primaryArtist(effectiveArtist.orEmpty()).ifBlank { effectiveArtist.orEmpty() }.trim()
+    if (artistName.isBlank()) {
+      artistImageUrl = null
+      return@LaunchedEffect
+    }
+    artistImageUrl =
+      runCatching {
+        ArtistImageApi.resolveArtistImageUrl(
+          recordingMbid = null,
+          artistName = artistName,
+          userAddress = userAddress,
+        )
+      }.getOrNull()?.trim()?.ifBlank { null }
   }
 
   fun openGeniusAnnotate() {
@@ -519,6 +544,7 @@ fun SongScreen(
       artist = effectiveArtist,
       coverCid = stats?.coverCid,
       localCoverUri = localCoverUri,
+      artistImageUrl = artistImageUrl,
       scrobbleCountTotal = stats?.scrobbleCountTotal ?: 0L,
       onArtistClick = {
         val artistName = effectiveArtist.orEmpty()

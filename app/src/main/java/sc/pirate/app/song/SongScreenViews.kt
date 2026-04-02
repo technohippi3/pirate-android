@@ -119,6 +119,7 @@ internal fun SongTopSection(
   artist: String?,
   coverCid: String?,
   localCoverUri: String?,
+  artistImageUrl: String?,
   scrobbleCountTotal: Long,
   onArtistClick: () -> Unit,
   onBack: () -> Unit,
@@ -130,6 +131,7 @@ internal fun SongTopSection(
   val coverUrl = CoverRef.resolveCoverUrl(ref = coverCid, width = 800, height = 800, format = "webp", quality = 85)
   val localCover = localCoverUri?.trim().orEmpty().ifBlank { null }
   val displayCover = coverUrl ?: localCover
+  val artistAvatar = artistImageUrl?.trim().orEmpty().ifBlank { null } ?: displayCover
   var coverLoading by remember(displayCover) { mutableStateOf(!displayCover.isNullOrBlank()) }
   val titleText = title.ifBlank { "Song" }
   val artistText = artist?.ifBlank { null }
@@ -253,9 +255,9 @@ internal fun SongTopSection(
               shape = CircleShape,
               color = MaterialTheme.colorScheme.surfaceVariant,
             ) {
-              if (!displayCover.isNullOrBlank()) {
+              if (!artistAvatar.isNullOrBlank()) {
                 AsyncImage(
-                  model = displayCover,
+                  model = artistAvatar,
                   contentDescription = "Artist",
                   modifier = Modifier.fillMaxSize(),
                   contentScale = ContentScale.Crop,

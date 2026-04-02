@@ -1,7 +1,9 @@
 package sc.pirate.app.song
 
 import android.util.Log
+import sc.pirate.app.resolvePublicProfileIdentity
 import sc.pirate.app.music.SongPublishService
+import sc.pirate.app.util.shortAddress
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.Request
@@ -16,6 +18,20 @@ object SongArtistApi {
   private const val GENIUS_MIN_LINES_TOTAL = 6
   private const val GENIUS_HITS_PER_QUERY = 10
 
+  private fun jsonOptionalString(
+    payload: JSONObject,
+    key: String,
+  ): String? =
+    payload
+      .optString(key, "")
+      .trim()
+      .takeIf { it.isNotBlank() && !it.equals("null", ignoreCase = true) }
+
+  private data class ResolvedArtistTarget(
+    val publisherAddress: String,
+    val artistLabel: String,
+  )
+
   suspend fun fetchSongStats(trackId: String): SongStats? =
     withContext(Dispatchers.IO) {
       val normalizedTrackId = normalizeBytes32(trackId) ?: return@withContext null
@@ -25,7 +41,7 @@ object SongArtistApi {
       for (subgraphUrl in musicSocialSubgraphUrls()) {
         try {
           val row = fetchSongStatsFromSubgraph(subgraphUrl, normalizedTrackId)
-          if (row != null) return@withContext row
+          if (row != null) return@withContext hydratePublisherLabel(row)
           sawSuccessfulEmpty = true
         } catch (error: Throwable) {
           Log.w(TAG, "fetchSongStats failed for $subgraphUrl", error)
@@ -33,7 +49,7 @@ object SongArtistApi {
         }
       }
 
-      fetchSongStatsFromChain(normalizedTrackId)?.let { return@withContext it }
+      fetchSongStatsFromChain(normalizedTrackId)?.let { return@withContext hydratePublisherLabel(it) }
 
       if (sawSuccessfulEmpty) return@withContext null
       if (lastError != null && isSubgraphAvailabilityError(lastError)) return@withContext null
@@ -94,12 +110,13 @@ object SongArtistApi {
       val artist = artistName.trim()
       if (artist.isBlank()) return@withContext emptyList()
       val first = maxEntries.coerceIn(1, 200)
+      val target = resolveArtistTarget(artist) ?: return@withContext emptyList()
 
       var sawSuccessfulEmpty = false
       var lastError: Throwable? = null
       for (subgraphUrl in musicSocialSubgraphUrls()) {
         try {
-          val rows = fetchArtistTopTracksFromSubgraph(subgraphUrl, artist, first)
+          val rows = fetchArtistTopTracksFromSubgraph(subgraphUrl, target.publisherAddress, target.artistLabel, first)
           if (rows.isNotEmpty()) return@withContext rows
           sawSuccessfulEmpty = true
         } catch (error: Throwable) {
@@ -119,12 +136,13 @@ object SongArtistApi {
       val artist = artistName.trim()
       if (artist.isBlank()) return@withContext emptyList()
       val first = maxEntries.coerceIn(1, 100)
+      val target = resolveArtistTarget(artist) ?: return@withContext emptyList()
 
       var sawSuccessfulEmpty = false
       var lastError: Throwable? = null
       for (subgraphUrl in musicSocialSubgraphUrls()) {
         try {
-          val rows = fetchArtistTopListenersFromSubgraph(subgraphUrl, artist, first)
+          val rows = fetchArtistTopListenersFromSubgraph(subgraphUrl, target.publisherAddress, first)
           if (rows.isNotEmpty()) return@withContext rows
           sawSuccessfulEmpty = true
         } catch (error: Throwable) {
@@ -139,29 +157,47 @@ object SongArtistApi {
       emptyList()
     }
 
-  suspend fun fetchArtistRecentScrobbles(artistName: String, maxEntries: Int = 40): List<ArtistScrobbleRow> =
+  suspend fun fetchArtistCatalogSongs(artistName: String, maxEntries: Int = 8): List<ArtistCatalogSongRow> =
     withContext(Dispatchers.IO) {
       val artist = artistName.trim()
       if (artist.isBlank()) return@withContext emptyList()
-      val first = maxEntries.coerceIn(1, 200)
+      val apiBaseUrl = normalizedApiBaseUrl() ?: return@withContext emptyList()
+      val safeLimit = maxEntries.coerceIn(1, 8)
+      val request =
+        Request.Builder()
+          .url("$apiBaseUrl/api/study-sets/catalog/artist/${encodeUrlComponent(artist)}?limit=$safeLimit")
+          .get()
+          .header("Accept", "application/json")
+          .build()
 
-      var sawSuccessfulEmpty = false
-      var lastError: Throwable? = null
-      for (subgraphUrl in musicSocialSubgraphUrls()) {
-        try {
-          val rows = fetchArtistRecentScrobblesFromSubgraph(subgraphUrl, artist, first)
-          if (rows.isNotEmpty()) return@withContext rows
-          sawSuccessfulEmpty = true
-        } catch (error: Throwable) {
-          Log.w(TAG, "fetchArtistRecentScrobbles failed for $subgraphUrl", error)
-          lastError = error
+      songArtistClient.newCall(request).execute().use { response ->
+        val payload = JSONObject(response.body?.string().orEmpty().ifBlank { "{}" })
+        if (!response.isSuccessful || !payload.optBoolean("success", false)) {
+          val message = payload.optString("error", "").trim().ifBlank { "Catalog artist lookup failed (HTTP ${response.code})" }
+          throw IllegalStateException(message)
         }
-      }
 
-      if (sawSuccessfulEmpty) return@withContext emptyList()
-      if (lastError != null && isSubgraphAvailabilityError(lastError)) return@withContext emptyList()
-      if (lastError != null) throw lastError
-      emptyList()
+        val rows = payload.optJSONArray("songs") ?: JSONArray()
+        val out = ArrayList<ArtistCatalogSongRow>(rows.length())
+        for (index in 0 until rows.length()) {
+          val row = rows.optJSONObject(index) ?: continue
+          val trackId = row.optString("trackId", "").trim()
+          val title = row.optString("title", "").trim()
+          val artistLabel = row.optString("artist", "").trim()
+          if (trackId.isBlank() || title.isBlank() || artistLabel.isBlank()) continue
+          out +=
+            ArtistCatalogSongRow(
+              trackId = trackId,
+              title = title,
+              artistLabel = artistLabel,
+              album = jsonOptionalString(row, "album").orEmpty(),
+              coverUrl = jsonOptionalString(row, "coverUrl"),
+              artworkUrl = jsonOptionalString(row, "artworkUrl"),
+              lyricsRef = jsonOptionalString(row, "lyricsRef"),
+            )
+        }
+        out
+      }
     }
 
   suspend fun fetchLatestTracksFromChain(maxEntries: Int = 100): List<SongStats> =
@@ -171,6 +207,7 @@ object SongArtistApi {
       if (trackIds.isEmpty()) return@withContext emptyList()
       val meta = fetchTrackMetaFromChain(trackIds)
       if (meta.isEmpty()) return@withContext emptyList()
+      val labelByPublisher = resolvePublisherLabels(meta.values.mapNotNull { it.publisherAddress })
       meta.values
         .sortedByDescending { it.registeredAtSec }
         .take(first)
@@ -178,13 +215,14 @@ object SongArtistApi {
           SongStats(
             trackId = it.trackId,
             title = it.title.ifBlank { it.trackId.take(14) },
-            artist = it.artist.ifBlank { "Unknown Artist" },
+            artistLabel = labelByPublisher[it.publisherAddress] ?: it.publisherLabel.ifBlank { "Unknown Artist" },
             album = it.album,
             coverCid = it.coverCid,
             lyricsRef = null,
             scrobbleCountTotal = 0L,
             scrobbleCountVerified = 0L,
             registeredAtSec = it.registeredAtSec,
+            publisherAddress = it.publisherAddress,
           )
         }
     }
@@ -231,10 +269,11 @@ object SongArtistApi {
         val broadFirst = (first * 2).coerceIn(40, 300)
         for (subgraphUrl in musicSocialSubgraphUrls()) {
           val rows = runCatching { fetchTracksByTitleFromSubgraph(subgraphUrl, title, broadFirst) }.getOrElse { emptyList() }
-          for (row in rows) {
+          val hydratedRows = hydratePublisherLabels(rows)
+          for (row in hydratedRows) {
             var candidateBest = Double.NEGATIVE_INFINITY
             for (targetArtistNorm in artistCandidateNorms) {
-              if (!artistMatchesTarget(row.artist, targetArtistNorm)) continue
+              if (!artistMatchesTarget(row.artistLabel, targetArtistNorm)) continue
               val score = scoreTrackCandidate(titleNorm, targetArtistNorm, row)
               if (score > candidateBest) candidateBest = score
             }
@@ -252,13 +291,14 @@ object SongArtistApi {
       SongStats(
         trackId = winner.trackId,
         title = winner.title.ifBlank { title },
-        artist = winner.artist.ifBlank { artistName.ifBlank { "Unknown Artist" } },
+        artistLabel = winner.artistLabel.ifBlank { artistName.ifBlank { "Unknown Artist" } },
         album = winner.album,
         coverCid = winner.coverCid,
         lyricsRef = winner.lyricsRef,
         scrobbleCountTotal = winner.scrobbleCountTotal,
         scrobbleCountVerified = winner.scrobbleCountVerified,
         registeredAtSec = 0L,
+        publisherAddress = winner.publisherAddress,
       )
     }
 
@@ -553,7 +593,7 @@ object SongArtistApi {
           if (!res.isSuccessful) return@use null
           val text = res.body?.string().orEmpty()
           val json = runCatching { JSONObject(text) }.getOrNull() ?: return@use null
-          json.optString("coverUrl", "").trim().ifBlank { null }
+          jsonOptionalString(json, "coverUrl")
         }
       }.getOrNull()
     }
@@ -715,7 +755,7 @@ object SongArtistApi {
     val candidateTitleNorm = normalizeSongTitleForMatch(candidate.title)
     if (candidateTitleNorm.isBlank()) return 0.0
     val titleScore = titleSimilarityScore(targetTitleNorm, candidateTitleNorm)
-    val artistScore = if (artistMatchesTarget(candidate.artist, targetArtistNorm)) 1.0 else 0.0
+    val artistScore = if (artistMatchesTarget(candidate.artistLabel, targetArtistNorm)) 1.0 else 0.0
     return (titleScore * 0.85) + (artistScore * 0.15)
   }
 
@@ -750,5 +790,85 @@ object SongArtistApi {
     val raw = SongPublishService.API_CORE_URL.trim().trimEnd('/')
     if (raw.startsWith("https://") || raw.startsWith("http://")) return raw
     return null
+  }
+
+  private suspend fun resolveArtistTarget(artistName: String): ResolvedArtistTarget? {
+    val normalizedArtist = artistName.trim()
+    if (normalizedArtist.isBlank()) return null
+
+    val directAddress = normalizeAddress(normalizedArtist)
+    if (directAddress != null) {
+      return ResolvedArtistTarget(
+        publisherAddress = directAddress,
+        artistLabel = resolvePublisherLabel(directAddress),
+      )
+    }
+
+    val apiBaseUrl = normalizedApiBaseUrl() ?: return null
+    val request =
+      Request.Builder()
+        .url("$apiBaseUrl/api/music/artists/${encodeUrlComponent(normalizedArtist)}/identity")
+        .get()
+        .header("Accept", "application/json")
+        .build()
+
+    val publisherAddress =
+      runCatching {
+        songArtistClient.newCall(request).execute().use { response ->
+          if (!response.isSuccessful) return@use null
+          val payload = JSONObject(response.body?.string().orEmpty())
+          normalizeAddress(payload.optString("publisherAddress", ""))
+        }
+      }.getOrNull()
+        ?: return null
+
+    return ResolvedArtistTarget(
+      publisherAddress = publisherAddress,
+      artistLabel = resolvePublisherLabel(publisherAddress, normalizedArtist),
+    )
+  }
+
+  private suspend fun hydratePublisherLabel(stats: SongStats): SongStats {
+    val publisherAddress = stats.publisherAddress ?: return stats
+    val artistLabel = resolvePublisherLabel(publisherAddress, stats.artistLabel)
+    return if (artistLabel == stats.artistLabel) stats else stats.copy(artistLabel = artistLabel)
+  }
+
+  private suspend fun hydratePublisherLabels(rows: List<ArtistTrackRow>): List<ArtistTrackRow> {
+    if (rows.isEmpty()) return rows
+    val labelByPublisher = resolvePublisherLabels(rows.mapNotNull { it.publisherAddress })
+    if (labelByPublisher.isEmpty()) return rows
+    return rows.map { row ->
+      val publisherAddress = row.publisherAddress
+      val artistLabel = publisherAddress?.let { labelByPublisher[it] }
+      if (artistLabel.isNullOrBlank() || artistLabel == row.artistLabel) row else row.copy(artistLabel = artistLabel)
+    }
+  }
+
+  private suspend fun resolvePublisherLabels(
+    publisherAddresses: List<String>,
+  ): Map<String, String> {
+    val normalizedPublishers = publisherAddresses.mapNotNull { normalizeAddress(it) }.distinct()
+    if (normalizedPublishers.isEmpty()) return emptyMap()
+    val out = LinkedHashMap<String, String>(normalizedPublishers.size)
+    for (publisherAddress in normalizedPublishers) {
+      out[publisherAddress] = resolvePublisherLabel(publisherAddress)
+    }
+    return out
+  }
+
+  private suspend fun resolvePublisherLabel(
+    publisherAddress: String,
+    fallback: String = shortAddress(publisherAddress, minLengthToShorten = 14),
+  ): String {
+    val normalizedPublisher = normalizeAddress(publisherAddress) ?: return fallback.ifBlank { "Unknown Artist" }
+    val fallbackLabel = fallback.ifBlank { shortAddress(normalizedPublisher, minLengthToShorten = 14) }
+    val resolvedLabel =
+      runCatching { resolvePublicProfileIdentity(normalizedPublisher) }
+        .getOrNull()
+        ?.first
+        ?.trim()
+        ?.ifBlank { null }
+    return resolvedLabel ?: fallbackLabel
   }
 }

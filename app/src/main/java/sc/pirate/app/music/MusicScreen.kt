@@ -21,6 +21,7 @@ import androidx.core.content.ContextCompat
 import sc.pirate.app.player.PlayerController
 import sc.pirate.app.scrobble.SpotifyNotificationAccess
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -71,7 +72,12 @@ internal fun MusicScreen(
         else -> MusicView.Home
       }
   }
-  var searchQuery by rememberSaveable { mutableStateOf("") }
+  var librarySearchQuery by rememberSaveable { mutableStateOf(MusicScreenCache.librarySearchQuery) }
+  var discoverSearchQuery by rememberSaveable { mutableStateOf(MusicScreenCache.discoverSearchQuery) }
+  var discoverSearchResults by remember { mutableStateOf(MusicScreenCache.discoverSearchResults) }
+  var discoverSearchLoading by remember { mutableStateOf(false) }
+  var discoverSearchError by remember { mutableStateOf(MusicScreenCache.discoverSearchError) }
+  var discoverSearchWarning by remember { mutableStateOf(MusicScreenCache.discoverSearchWarning) }
   var recentPublishedReleases by remember { mutableStateOf(MusicScreenCache.recentPublishedReleases) }
   var recentPublishedReleasesLoading by remember { mutableStateOf(MusicScreenCache.recentPublishedReleases.isEmpty()) }
   var recentPublishedReleasesError by remember { mutableStateOf(MusicScreenCache.recentPublishedReleasesError) }
@@ -170,6 +176,17 @@ internal fun MusicScreen(
 
   LaunchedEffect(purchasedCloudTracks) {
     MusicScreenCache.purchasedCloudTracks = purchasedCloudTracks
+  }
+
+  LaunchedEffect(librarySearchQuery) {
+    MusicScreenCache.librarySearchQuery = librarySearchQuery
+  }
+
+  LaunchedEffect(discoverSearchQuery, discoverSearchResults, discoverSearchError, discoverSearchWarning) {
+    MusicScreenCache.discoverSearchQuery = discoverSearchQuery
+    MusicScreenCache.discoverSearchResults = discoverSearchResults
+    MusicScreenCache.discoverSearchError = discoverSearchError
+    MusicScreenCache.discoverSearchWarning = discoverSearchWarning
   }
 
   LaunchedEffect(sharedSeenItemIds) {
@@ -414,6 +431,38 @@ internal fun MusicScreen(
         downloadedTracksByContentId = downloadedTracksByContentId,
       )
     }
+  LaunchedEffect(discoverSearchQuery) {
+    val normalizedQuery = discoverSearchQuery.trim()
+    if (normalizedQuery.isBlank()) {
+      discoverSearchResults = emptyList()
+      discoverSearchLoading = false
+      discoverSearchError = null
+      discoverSearchWarning = null
+      return@LaunchedEffect
+    }
+
+    discoverSearchLoading = true
+    discoverSearchError = null
+    delay(300)
+
+    runCatching { searchMusicDiscovery(normalizedQuery) }
+      .onSuccess { payload ->
+        if (discoverSearchQuery.trim() != normalizedQuery) return@onSuccess
+        discoverSearchResults = payload.results
+        discoverSearchWarning = payload.warning
+        discoverSearchError = null
+      }
+      .onFailure { error ->
+        if (discoverSearchQuery.trim() != normalizedQuery) return@onFailure
+        discoverSearchResults = emptyList()
+        discoverSearchWarning = null
+        discoverSearchError = error.message ?: "Search failed"
+      }
+
+    if (discoverSearchQuery.trim() == normalizedQuery) {
+      discoverSearchLoading = false
+    }
+  }
   val purchaseIdsByTrackId =
     remember(purchasedCloudTracks) {
       val out = LinkedHashMap<String, String>(purchasedCloudTracks.size)
@@ -542,6 +591,7 @@ internal fun MusicScreen(
     onOpenPlayer = onOpenPlayer,
     hasPermission = hasPermission,
     tracks = libraryTracks,
+    librarySearchQuery = librarySearchQuery,
     scanning = scanning,
     libraryError = error,
     onRequestPermission = { requestPermission.launch(permission) },
@@ -556,8 +606,22 @@ internal fun MusicScreen(
       selectedTrack = track
       trackMenuOpen = true
     },
-    searchQuery = searchQuery,
-    onSearchQueryChange = { searchQuery = it },
+    onLibrarySearchQueryChange = { librarySearchQuery = it },
+    discoverSearchQuery = discoverSearchQuery,
+    discoverSearchResults = discoverSearchResults,
+    discoverSearchLoading = discoverSearchLoading,
+    discoverSearchError = discoverSearchError,
+    discoverSearchWarning = discoverSearchWarning,
+    onDiscoverSearchQueryChange = { discoverSearchQuery = it },
+    onOpenDiscoveryResult = { result ->
+      val navigator = onOpenSongPage
+      if (navigator == null) {
+        onShowMessage("Song view coming soon")
+      } else {
+        MusicScreenCache.putSongArtworkSeed(result.trackId, result.artworkUrl)
+        navigator(result.trackId, result.title, result.artist)
+      }
+    },
     sharedLoading = sharedLoading,
     sharedError = sharedError,
     isAuthenticated = isAuthenticated,

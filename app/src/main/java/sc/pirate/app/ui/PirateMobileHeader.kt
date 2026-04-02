@@ -55,6 +55,7 @@ fun PirateMobileHeader(
   @DrawableRes titleAvatarDrawableRes: Int? = null,
   titleAvatarDisplayName: String? = null,
   onTitlePress: (() -> Unit)? = null,
+  centerSlot: (@Composable () -> Unit)? = null,
   rightSlot: (@Composable () -> Unit)? = null,
 ) {
   val appContext = LocalContext.current.applicationContext
@@ -136,72 +137,81 @@ fun PirateMobileHeader(
         }
       }
 
-      val titleModifier =
-        Modifier
-          .align(Alignment.Center)
-          .let { modifier ->
-            if (onTitlePress != null) modifier.clickable(onClick = onTitlePress) else modifier
-          }
-      val centerAvatarUri = titleAvatarUri?.trim()?.takeIf { it.isNotBlank() }
-      val centerDisplayName = titleAvatarDisplayName?.trim()?.takeIf { it.isNotBlank() } ?: title
-      if (!centerAvatarUri.isNullOrBlank() || !titleAvatarDisplayName.isNullOrBlank() || titleAvatarDrawableRes != null) {
-        Row(
-          modifier = titleModifier,
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(8.dp),
+      if (centerSlot != null) {
+        Box(
+          modifier = Modifier.align(Alignment.Center).fillMaxWidth().padding(horizontal = 48.dp),
+          contentAlignment = Alignment.Center,
         ) {
-          if (titleAvatarDrawableRes != null) {
-            Image(
-              painter = painterResource(titleAvatarDrawableRes),
-              contentDescription = centerDisplayName,
-              modifier = Modifier.size(24.dp).clip(CircleShape),
-              contentScale = ContentScale.Crop,
-            )
-          } else {
-            val avatarUrl = resolveAvatarUrl(centerAvatarUri)
-            if (!avatarUrl.isNullOrBlank()) {
-              PirateAvatarBadge(
-                avatarUri = centerAvatarUri,
-                fallbackLabel = centerDisplayName.take(1).ifBlank { "?" }.uppercase(),
-                size = 24.dp,
-                shape = CircleShape,
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+          centerSlot()
+        }
+      } else {
+        val titleModifier =
+          Modifier
+            .align(Alignment.Center)
+            .let { modifier ->
+              if (onTitlePress != null) modifier.clickable(onClick = onTitlePress) else modifier
+            }
+        val centerAvatarUri = titleAvatarUri?.trim()?.takeIf { it.isNotBlank() }
+        val centerDisplayName = titleAvatarDisplayName?.trim()?.takeIf { it.isNotBlank() } ?: title
+        if (!centerAvatarUri.isNullOrBlank() || !titleAvatarDisplayName.isNullOrBlank() || titleAvatarDrawableRes != null) {
+          Row(
+            modifier = titleModifier,
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            if (titleAvatarDrawableRes != null) {
+              Image(
+                painter = painterResource(titleAvatarDrawableRes),
                 contentDescription = centerDisplayName,
+                modifier = Modifier.size(24.dp).clip(CircleShape),
+                contentScale = ContentScale.Crop,
               )
             } else {
-              Surface(
-                modifier = Modifier.size(24.dp),
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-              ) {
-                Box(contentAlignment = Alignment.Center) {
-                  Text(
-                    (centerDisplayName.take(1).ifBlank { "?" }).uppercase(),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold,
-                  )
+              val avatarUrl = resolveAvatarUrl(centerAvatarUri)
+              if (!avatarUrl.isNullOrBlank()) {
+                PirateAvatarBadge(
+                  avatarUri = centerAvatarUri,
+                  fallbackLabel = centerDisplayName.take(1).ifBlank { "?" }.uppercase(),
+                  size = 24.dp,
+                  shape = CircleShape,
+                  containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                  contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                  contentDescription = centerDisplayName,
+                )
+              } else {
+                Surface(
+                  modifier = Modifier.size(24.dp),
+                  shape = CircleShape,
+                  color = MaterialTheme.colorScheme.surfaceVariant,
+                  border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                ) {
+                  Box(contentAlignment = Alignment.Center) {
+                    Text(
+                      (centerDisplayName.take(1).ifBlank { "?" }).uppercase(),
+                      color = MaterialTheme.colorScheme.onSurfaceVariant,
+                      style = MaterialTheme.typography.labelMedium,
+                      fontWeight = FontWeight.Bold,
+                    )
+                  }
                 }
               }
             }
+            Text(
+              title,
+              fontWeight = FontWeight.Bold,
+              color = MaterialTheme.colorScheme.onBackground,
+              style = MaterialTheme.typography.titleLarge,
+            )
           }
+        } else {
           Text(
             title,
+            modifier = titleModifier,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground,
             style = MaterialTheme.typography.titleLarge,
           )
         }
-      } else {
-        Text(
-          title,
-          modifier = titleModifier,
-          fontWeight = FontWeight.Bold,
-          color = MaterialTheme.colorScheme.onBackground,
-          style = MaterialTheme.typography.titleLarge,
-        )
       }
 
       Box(modifier = Modifier.align(Alignment.CenterEnd)) {

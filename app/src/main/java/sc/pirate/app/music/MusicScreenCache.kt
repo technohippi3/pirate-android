@@ -61,6 +61,23 @@ internal object MusicScreenCache {
   var lastPurchasedLibraryLoadAtMs: Long = 0L
 
   @Volatile
+  var librarySearchQuery: String = ""
+
+  @Volatile
+  var discoverSearchQuery: String = ""
+
+  @Volatile
+  var discoverSearchResults: List<MusicDiscoveryResult> = emptyList()
+
+  @Volatile
+  var discoverSearchError: String? = null
+
+  @Volatile
+  var discoverSearchWarning: String? = null
+
+  private val songArtworkSeedByTrackId = HashMap<String, String>()
+
+  @Volatile
   var sharedOwnerLabels: Map<String, String> = emptyMap()
 
   @Volatile
@@ -99,6 +116,28 @@ internal object MusicScreenCache {
     val key = playlistId?.trim().orEmpty()
     if (key.isBlank()) return
     playlistDetailById.remove(key)
+  }
+
+  @Synchronized
+  fun getSongArtworkSeed(trackId: String?): String? {
+    val key = trackId?.trim().orEmpty()
+    if (key.isBlank()) return null
+    return songArtworkSeedByTrackId[key]
+  }
+
+  @Synchronized
+  fun putSongArtworkSeed(
+    trackId: String?,
+    artworkUrl: String?,
+  ) {
+    val key = trackId?.trim().orEmpty()
+    if (key.isBlank()) return
+    val value = artworkUrl?.trim().orEmpty()
+    if (value.isBlank()) {
+      songArtworkSeedByTrackId.remove(key)
+    } else {
+      songArtworkSeedByTrackId[key] = value
+    }
   }
 
   fun shouldRefreshLibrary(

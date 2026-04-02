@@ -37,6 +37,7 @@ internal fun MusicScreenRouteHost(
   onOpenPlayer: () -> Unit,
   hasPermission: Boolean,
   tracks: List<MusicTrack>,
+  librarySearchQuery: String,
   scanning: Boolean,
   libraryError: String?,
   onRequestPermission: () -> Unit,
@@ -44,8 +45,14 @@ internal fun MusicScreenRouteHost(
   onOpenSpotifyAccessSettings: () -> Unit,
   onScan: () -> Unit,
   onOpenTrackMenu: (MusicTrack) -> Unit,
-  searchQuery: String,
-  onSearchQueryChange: (String) -> Unit,
+  onLibrarySearchQueryChange: (String) -> Unit,
+  discoverSearchQuery: String,
+  discoverSearchResults: List<MusicDiscoveryResult>,
+  discoverSearchLoading: Boolean,
+  discoverSearchError: String?,
+  discoverSearchWarning: String?,
+  onDiscoverSearchQueryChange: (String) -> Unit,
+  onOpenDiscoveryResult: (MusicDiscoveryResult) -> Unit,
   sharedLoading: Boolean,
   sharedError: String?,
   isAuthenticated: Boolean,
@@ -143,7 +150,7 @@ internal fun MusicScreenRouteHost(
             ownerEthAddress = ownerEthAddress,
             primaryName = primaryName,
             avatarUri = avatarUri,
-            onNavigateSearch = { onViewChange(MusicView.Search) },
+            onNavigateSearch = { onViewChange(MusicView.DiscoverSearch) },
             onNavigateLibrary = { onViewChange(MusicView.Library) },
             onNavigateShared = { onViewChange(MusicView.Shared) },
             onNavigatePlaylists = { onViewChange(MusicView.Playlists) },
@@ -157,12 +164,13 @@ internal fun MusicScreenRouteHost(
           MusicLibraryRoute(
             hasPermission = hasPermission,
             tracks = tracks,
+            query = librarySearchQuery,
             scanning = scanning,
             error = libraryError,
             currentTrackId = currentTrackId,
             isPlaying = isPlaying,
             onBack = { onViewChange(MusicView.Home) },
-            onNavigateSearch = { onViewChange(MusicView.Search) },
+            onQueryChange = onLibrarySearchQueryChange,
             onRequestPermission = onRequestPermission,
             showSpotifyAccessPrompt = showSpotifyAccessPrompt,
             onOpenSpotifyAccessSettings = onOpenSpotifyAccessSettings,
@@ -177,24 +185,18 @@ internal fun MusicScreenRouteHost(
           )
         }
 
-        MusicView.Search -> {
-          MusicSearchRoute(
-            query = searchQuery,
-            onQueryChange = onSearchQueryChange,
-            tracks = tracks,
-            currentTrackId = currentTrackId,
-            isPlaying = isPlaying,
+        MusicView.DiscoverSearch -> {
+          MusicDiscoverSearchRoute(
+            query = discoverSearchQuery,
+            results = discoverSearchResults,
+            loading = discoverSearchLoading,
+            error = discoverSearchError,
+            warning = discoverSearchWarning,
+            onQueryChange = onDiscoverSearchQueryChange,
             onBack = {
-              onSearchQueryChange("")
               onViewChange(MusicView.Home)
             },
-            onPlayTrack = { track ->
-              playTrackWithResolution(
-                selected = track,
-                queueTracks = tracks,
-              )
-            },
-            onTrackMenu = onOpenTrackMenu,
+            onOpenResult = onOpenDiscoveryResult,
           )
         }
 
