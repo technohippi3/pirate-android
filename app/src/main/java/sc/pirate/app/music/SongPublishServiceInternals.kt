@@ -71,6 +71,111 @@ internal data class SongPublishPreparedStoryIntent(
   val typedData: JSONObject,
 )
 
+internal data class SongPublishFinalizeArtifact(
+  val ref: String,
+  val sha256: String,
+  val bytes: Int,
+  val encryptionAlgo: String,
+) {
+  fun toJson(): JSONObject =
+    JSONObject().apply {
+      put("ref", ref)
+      put("sha256", sha256)
+      put("bytes", bytes)
+      put("encryptionAlgo", encryptionAlgo)
+    }
+}
+
+internal data class SongPublishFinalizeStem(
+  val stemType: String,
+  val artifact: SongPublishFinalizeArtifact,
+) {
+  fun toJson(): JSONObject =
+    JSONObject().apply {
+      put("stemType", stemType)
+      put("artifact", artifact.toJson())
+    }
+}
+
+internal data class SongPublishFinalizeCdrPayload(
+  val dataKey: String,
+  val writeConditionAddr: String,
+  val readConditionAddr: String,
+  val writeConditionData: String,
+  val readConditionData: String,
+  val accessAuxData: String,
+  val writerAddress: String,
+) {
+  fun toJson(): JSONObject =
+    JSONObject().apply {
+      put("dataKey", dataKey)
+      put("writeConditionAddr", writeConditionAddr)
+      put("readConditionAddr", readConditionAddr)
+      put("writeConditionData", writeConditionData)
+      put("readConditionData", readConditionData)
+      put("accessAuxData", accessAuxData)
+      put("writerAddress", writerAddress)
+    }
+}
+
+internal data class SongPublishFinalizePreparePayload(
+  val trackId: String,
+  val publishIdExpected: String,
+  val payload: String,
+  val coverRef: String,
+  val datasetOwner: String,
+  val algo: Int,
+  val visibility: Int,
+  val replaceIfActive: Boolean,
+  val pieceCid: String,
+  val contentId: String,
+  val artifact: SongPublishFinalizeArtifact,
+  val stems: List<SongPublishFinalizeStem>,
+  val cdr: SongPublishFinalizeCdrPayload,
+)
+
+internal data class SongPublishFinalizeCdrUploadPayload(
+  val cdrVaultUuid: Int,
+  val writerAddress: String?,
+  val allocateTxHash: String?,
+  val writeTxHash: String?,
+)
+
+internal data class SongPublishFinalizeSubmitRequest(
+  val title: String,
+  val album: String,
+  val durationS: Int,
+  val signedTx: String,
+  val contentId: String,
+  val cdrVaultUuid: Int,
+  val pieceCid: String,
+  val artifact: SongPublishFinalizeArtifact,
+  val stems: List<SongPublishFinalizeStem>,
+  val purchasePrice: String? = null,
+  val maxSupply: Int? = null,
+) {
+  fun toJson(): JSONObject =
+    JSONObject().apply {
+      put("title", title)
+      put("album", album)
+      put("durationS", durationS)
+      put("signedTx", signedTx)
+      put("contentId", contentId)
+      put("cdrVaultUuid", cdrVaultUuid)
+      put("pieceCid", pieceCid)
+      put("artifact", artifact.toJson())
+      put("stems", JSONArray().apply {
+        stems.forEach { put(it.toJson()) }
+      })
+      if (!purchasePrice.isNullOrBlank()) {
+        put("purchasePrice", purchasePrice)
+      }
+      if (maxSupply != null) {
+        put("maxSupply", maxSupply)
+      }
+    }
+}
+
 internal data class SongPublishMetaParts(
   val kind: Int,
   val payload: ByteArray,
@@ -586,6 +691,105 @@ internal fun songPublishParsePreparedStoryIntent(response: SongPublishApiRespons
   )
 }
 
+private fun songPublishRequireHexString(value: String?, field: String): String {
+  val normalized = value?.trim().orEmpty()
+  if (normalized.isBlank()) {
+    throw IllegalStateException("$field is missing")
+  }
+  return normalized
+}
+
+private fun songPublishRequirePositiveInt(value: Int, field: String): Int {
+  if (value <= 0) {
+    throw IllegalStateException("$field must be positive")
+  }
+  return value
+}
+
+private fun songPublishParseFinalizeArtifact(
+  json: JSONObject?,
+  field: String,
+): SongPublishFinalizeArtifact {
+  val artifactJson = json ?: throw IllegalStateException("$field is missing")
+  return SongPublishFinalizeArtifact(
+    ref = songPublishRequireHexString(artifactJson.optString("ref", ""), "$field.ref"),
+    sha256 = songPublishRequireHexString(artifactJson.optString("sha256", ""), "$field.sha256"),
+    bytes = songPublishRequirePositiveInt(artifactJson.optInt("bytes", 0), "$field.bytes"),
+    encryptionAlgo = songPublishRequireHexString(artifactJson.optString("encryptionAlgo", ""), "$field.encryptionAlgo"),
+  )
+}
+
+private fun songPublishParseFinalizeStems(json: JSONArray?): List<SongPublishFinalizeStem> {
+  if (json == null) return emptyList()
+  val stems = mutableListOf<SongPublishFinalizeStem>()
+  for (index in 0 until json.length()) {
+    val item = json.optJSONObject(index) ?: continue
+    stems += SongPublishFinalizeStem(
+      stemType = songPublishRequireHexString(item.optString("stemType", ""), "finalize.stems[$index].stemType"),
+      artifact = songPublishParseFinalizeArtifact(
+        item.optJSONObject("artifact"),
+        "finalize.stems[$index].artifact",
+      ),
+    )
+  }
+  return stems
+}
+
+internal fun songPublishRequireFinalizePreparePayload(
+  label: String,
+  response: SongPublishApiResponse,
+): SongPublishFinalizePreparePayload {
+  val finalize = response.json?.optJSONObject("finalize")
+    ?: throw IllegalStateException("$label response is missing finalize payload")
+  val cdrJson = finalize.optJSONObject("cdr")
+    ?: throw IllegalStateException("$label response is missing finalize.cdr")
+  return SongPublishFinalizePreparePayload(
+    trackId = songPublishRequireHexString(finalize.optString("trackId", ""), "finalize.trackId"),
+    publishIdExpected = songPublishRequireHexString(finalize.optString("publishIdExpected", ""), "finalize.publishIdExpected"),
+    payload = songPublishRequireHexString(finalize.optString("payload", ""), "finalize.payload"),
+    coverRef = songPublishRequireHexString(finalize.optString("coverRef", ""), "finalize.coverRef"),
+    datasetOwner = songPublishRequireHexString(finalize.optString("datasetOwner", ""), "finalize.datasetOwner"),
+    algo = songPublishRequirePositiveInt(finalize.optInt("algo", 0), "finalize.algo"),
+    visibility = finalize.optInt("visibility", 0),
+    replaceIfActive = finalize.optBoolean("replaceIfActive", false),
+    pieceCid = songPublishRequireHexString(finalize.optString("pieceCid", ""), "finalize.pieceCid"),
+    contentId = songPublishRequireHexString(finalize.optString("contentId", ""), "finalize.contentId"),
+    artifact = songPublishParseFinalizeArtifact(finalize.optJSONObject("artifact"), "finalize.artifact"),
+    stems = songPublishParseFinalizeStems(finalize.optJSONArray("stems")),
+    cdr =
+      SongPublishFinalizeCdrPayload(
+        dataKey = songPublishRequireHexString(cdrJson.optString("dataKey", ""), "finalize.cdr.dataKey"),
+        writeConditionAddr = songPublishRequireHexString(cdrJson.optString("writeConditionAddr", ""), "finalize.cdr.writeConditionAddr"),
+        readConditionAddr = songPublishRequireHexString(cdrJson.optString("readConditionAddr", ""), "finalize.cdr.readConditionAddr"),
+        writeConditionData = songPublishRequireHexString(cdrJson.optString("writeConditionData", ""), "finalize.cdr.writeConditionData"),
+        readConditionData = songPublishRequireHexString(cdrJson.optString("readConditionData", ""), "finalize.cdr.readConditionData"),
+        accessAuxData = songPublishRequireHexString(cdrJson.optString("accessAuxData", "0x"), "finalize.cdr.accessAuxData"),
+        writerAddress = songPublishRequireHexString(cdrJson.optString("writerAddress", ""), "finalize.cdr.writerAddress"),
+      ),
+  )
+}
+
+internal fun songPublishRequireFinalizeCdrUploadPayload(
+  label: String,
+  response: SongPublishApiResponse,
+): SongPublishFinalizeCdrUploadPayload {
+  val cdrJson = response.json?.optJSONObject("cdr")
+    ?: throw IllegalStateException("$label response is missing cdr payload")
+  return SongPublishFinalizeCdrUploadPayload(
+    cdrVaultUuid = songPublishRequirePositiveInt(cdrJson.optInt("cdrVaultUuid", 0), "cdr.cdrVaultUuid"),
+    writerAddress = cdrJson.optString("writerAddress", "").trim().ifBlank { null },
+    allocateTxHash = cdrJson.optJSONObject("txHashes")?.optString("allocate", "")?.trim()?.ifBlank { null },
+    writeTxHash = cdrJson.optJSONObject("txHashes")?.optString("write", "")?.trim()?.ifBlank { null },
+  )
+}
+
+internal fun songPublishIsPendingFinalizeResponse(response: SongPublishApiResponse?): Boolean {
+  if (response == null || response.status != 202) return false
+  return response.json
+    ?.optJSONObject("registration")
+    ?.optBoolean("pending", false) == true
+}
+
 private fun songPublishHexQuantity(value: BigInteger): String {
   val normalized = if (value.signum() < 0) BigInteger.ZERO else value
   return "0x${normalized.toString(16)}"
@@ -649,38 +853,74 @@ private fun songPublishGetSuggestedFees(): SongPublishEip1559Fees {
   )
 }
 
-internal suspend fun songPublishFinalizeMusicPublish(
+internal suspend fun songPublishFinalizePrepareMusicPublish(
   context: Context,
   jobId: String,
   userAddress: String,
   title: String,
-  artist: String,
   durationSec: Int,
-  signedTx: String,
   album: String = "",
   purchasePrice: String? = null,
   maxSupply: Int? = null,
+  useBackendCdrWriter: Boolean = false,
 ): SongPublishApiResponse {
   val body = JSONObject().apply {
     put("title", title.trim())
-    put("artist", artist.trim())
     put("album", album.trim())
     put("durationS", durationSec)
-    put("signedTx", signedTx.trim())
     if (!purchasePrice.isNullOrBlank()) {
       put("purchasePrice", purchasePrice.trim())
     }
     if (maxSupply != null) {
       put("maxSupply", maxSupply)
     }
+    if (useBackendCdrWriter) {
+      put("useBackendCdrWriter", true)
+    }
   }
   return songPublishPostJsonToMusicApi(
     context = context,
-    path = "/api/music/publish/$jobId/finalize",
+    path = "/api/music/publish/$jobId/finalize/prepare",
     userAddress = userAddress,
     body = body,
   )
 }
+
+internal suspend fun songPublishFinalizeCdrUpload(
+  context: Context,
+  jobId: String,
+  userAddress: String,
+  title: String,
+  album: String = "",
+  contentId: String,
+  cdr: SongPublishFinalizeCdrPayload,
+): SongPublishApiResponse {
+  val body = JSONObject().apply {
+    put("title", title.trim())
+    put("album", album.trim())
+    put("contentId", contentId.trim())
+    put("cdr", cdr.toJson())
+  }
+  return songPublishPostJsonToMusicApi(
+    context = context,
+    path = "/api/music/publish/$jobId/finalize/cdr-upload",
+    userAddress = userAddress,
+    body = body,
+  )
+}
+
+internal suspend fun songPublishFinalizeSubmitMusicPublish(
+  context: Context,
+  jobId: String,
+  userAddress: String,
+  request: SongPublishFinalizeSubmitRequest,
+): SongPublishApiResponse =
+  songPublishPostJsonToMusicApi(
+    context = context,
+    path = "/api/music/publish/$jobId/finalize/submit",
+    userAddress = userAddress,
+    body = request.toJson(),
+  )
 
 internal suspend fun songPublishAttachPresentationForMusicPublish(
   context: Context,
@@ -704,7 +944,6 @@ internal suspend fun songPublishBuildSignedPublishTx(
   coordinatorAddress: String,
   ownerAddress: String,
   title: String,
-  artist: String,
   album: String,
   durationSec: Int,
   coverRef: String,
@@ -725,7 +964,6 @@ internal suspend fun songPublishBuildSignedPublishTx(
   val callData = songPublishEncodeCoordinatorPublishCallData(
     owner = owner,
     title = title,
-    artist = artist,
     album = album,
     durationSec = durationSec,
     coverRef = coverRef,
@@ -810,7 +1048,6 @@ private suspend fun songPublishBuildSignedContractCallTx(
 internal fun songPublishEncodeCoordinatorPublishCallData(
   owner: String,
   title: String,
-  artist: String,
   album: String,
   durationSec: Int,
   coverRef: String,
@@ -821,13 +1058,12 @@ internal fun songPublishEncodeCoordinatorPublishCallData(
   replaceIfActive: Boolean,
 ): String {
   val normalizedTitle = title.trim()
-  val normalizedArtist = artist.trim()
   val normalizedAlbum = album.trim()
   val normalizedCoverRef = coverRef.trim()
   val normalizedPieceCid = pieceCid.trim()
   val parts = songPublishComputeMetaParts(
+    ownerAddress = owner,
     title = normalizedTitle,
-    artist = normalizedArtist,
     album = normalizedAlbum,
   )
   val publishStruct =
@@ -836,7 +1072,6 @@ internal fun songPublishEncodeCoordinatorPublishCallData(
       Uint8(BigInteger.valueOf(3L)),
       Bytes32(parts.payload),
       Utf8String(normalizedTitle),
-      Utf8String(normalizedArtist),
       Utf8String(normalizedAlbum),
       Uint32(BigInteger.valueOf(durationSec.toLong())),
       Utf8String(normalizedCoverRef),
@@ -873,14 +1108,14 @@ internal fun songPublishEncodeSetPublishDelegateCallData(
 }
 
 internal fun songPublishComputeMetaParts(
+  ownerAddress: String,
   title: String,
-  artist: String,
   album: String,
 ): SongPublishMetaParts {
+  val normalizedOwner = normalizeChainAddress(ownerAddress)
   val normalizedTitle = title.trim()
-  val normalizedArtist = artist.trim()
   val normalizedAlbum = album.trim()
-  val payload = songPublishComputeMetaPayload(normalizedTitle, normalizedArtist, normalizedAlbum)
+  val payload = songPublishComputeMetaPayload(normalizedOwner, normalizedTitle, normalizedAlbum)
   val trackId = Keccak.Digest256().digest(songPublishAbiEncodeUint8Bytes32(kind = 3, payload32 = payload))
   return SongPublishMetaParts(
     kind = 3,
@@ -890,21 +1125,24 @@ internal fun songPublishComputeMetaParts(
 }
 
 private fun songPublishComputeMetaPayload(
+  ownerAddress: String,
   title: String,
-  artist: String,
   album: String,
 ): ByteArray {
-  val encoded = songPublishAbiEncodeStrings(title, artist, album)
+  val encoded = songPublishAbiEncodeAddressAndStrings(ownerAddress, title, album)
   return Keccak.Digest256().digest(encoded)
 }
 
-private fun songPublishAbiEncodeStrings(
+private fun songPublishAbiEncodeAddressAndStrings(
+  ownerAddress: String,
   title: String,
-  artist: String,
   album: String,
 ): ByteArray {
-  val values = listOf(title, artist, album).map { it.toByteArray(Charsets.UTF_8) }
-  val headSize = 32 * values.size
+  val normalizedOwner = normalizeChainAddress(ownerAddress)
+  val ownerBytes = P256Utils.hexToBytes(normalizedOwner.removePrefix("0x"))
+  require(ownerBytes.size == 20) { "ownerAddress must be 20 bytes" }
+  val values = listOf(title, album).map { it.toByteArray(Charsets.UTF_8) }
+  val headSize = 32 * 3
   val tails =
     values.map { bytes ->
       val paddedLen = ((bytes.size + 31) / 32) * 32
@@ -917,9 +1155,13 @@ private fun songPublishAbiEncodeStrings(
 
   var offset = headSize.toLong()
   return ByteArrayOutputStream().apply {
-    tails.forEach { tail ->
+    write(ByteArray(12))
+    write(ownerBytes)
+    tails.forEachIndexed { index, tail ->
       write(songPublishU256Word(offset))
-      offset += tail.size.toLong()
+      if (index < tails.lastIndex) {
+        offset += tail.size.toLong()
+      }
     }
     tails.forEach { write(it) }
   }.toByteArray()

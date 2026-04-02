@@ -21,7 +21,7 @@ import kotlin.math.ceil
  * 3) Run preflight checks
  * 4) Upload Story metadata JSON (IP + NFT metadata)
  * 5) Register on Story
- * 6) Finalize on Story and persist purchase asset metadata
+ * 6) Finalize via prepare -> CDR upload -> submit and persist purchase asset metadata
  */
 object SongPublishService {
 
@@ -39,6 +39,8 @@ object SongPublishService {
   private const val PREFLIGHT_RETRY_DELAY_MS = 2_000L
   private const val REGISTER_CONFIRM_MAX_RETRIES = 90
   private const val REGISTER_CONFIRM_RETRY_DELAY_MS = 2_000L
+  private const val FINALIZE_PENDING_MAX_RETRIES = 90
+  private const val FINALIZE_PENDING_RETRY_DELAY_MS = 2_000L
   private const val RECENT_COVERS_DIR = "recent_release_covers"
   private const val MAX_COVER_BYTES = 10 * 1024 * 1024
   private const val MAX_CANVAS_BYTES = 20 * 1024 * 1024
@@ -86,7 +88,7 @@ object SongPublishService {
 
   data class SongFormData(
     val title: String = "",
-    val artist: String = "",
+    val publisherLabel: String = "",
     val genre: String = "pop",
     val primaryLanguage: String = "en",
     val secondaryLanguage: String = "",
@@ -159,7 +161,6 @@ object SongPublishService {
   ): PublishResult {
     val userAddress = songPublishNormalizeUserAddress(ownerAddress)
     if (formData.title.isBlank()) throw IllegalStateException("Song title is required")
-    if (formData.artist.isBlank()) throw IllegalStateException("Artist is required")
     if (formData.lyrics.isBlank()) throw IllegalStateException("Lyrics are required")
     val vocalsUri = formData.vocalsUri ?: throw IllegalStateException("Vocals stem is required")
     val instrumentalUri = formData.instrumentalUri ?: throw IllegalStateException("Instrumental stem is required")
@@ -405,7 +406,6 @@ object SongPublishService {
         put("jobId", jobId)
         put("publishType", "original")
         put("title", formData.title.trim())
-        put("artist", formData.artist.trim())
         put("genre", formData.genre.trim())
         put("primaryLanguage", formData.primaryLanguage.trim())
         if (formData.secondaryLanguage.trim().isNotEmpty()) {
@@ -417,8 +417,8 @@ object SongPublishService {
         put("isInstrumentalSong", false)
       }
       val nftMetadataJson = JSONObject().apply {
-        put("name", "${formData.title.trim()} - ${formData.artist.trim()}")
-        put("description", "Pirate music publish: ${formData.title.trim()} by ${formData.artist.trim()}")
+        put("name", formData.title.trim())
+        put("description", "Pirate music publish: ${formData.title.trim()}")
         put("audioSha256", audioSha256)
       }
 
@@ -543,55 +543,82 @@ object SongPublishService {
     if (coordinatorAddress.isBlank() || coordinatorAddress.equals("0x0000000000000000000000000000000000000000", ignoreCase = true)) {
       throw IllegalStateException("Story publish coordinator is not configured in the app")
     }
-    val datasetOwner = userAddress
-    val algo = 1
-    val visibility = 0
-    val replaceIfActive = false
-    val stagedCoverRef = stagedCoverDataitemId
-      ?.trim()
-      ?.ifBlank { null }
-      ?.let { "ipfs://$it" }
-      ?: throw IllegalStateException("Cover CID missing from staged artifacts")
-    val stagedAudioPieceCid =
-      stagedAudioId?.trim()?.ifBlank { null }
-        ?: throw IllegalStateException("Audio piece CID missing from staged upload")
-    val signedTx = songPublishBuildSignedPublishTx(
-      context = context,
-      coordinatorAddress = coordinatorAddress,
-      ownerAddress = userAddress,
-      title = formData.title,
-      artist = formData.artist,
-      album = "",
-      durationSec = durationSec,
-      coverRef = stagedCoverRef,
-      datasetOwner = datasetOwner,
-      pieceCid = stagedAudioPieceCid,
-      algo = algo,
-      visibility = visibility,
-      replaceIfActive = replaceIfActive,
-    )
-
-    val finalizeResponse = songPublishFinalizeMusicPublish(
+    val finalizePrepareResponse = songPublishFinalizePrepareMusicPublish(
       context = context,
       jobId = jobId,
       userAddress = userAddress,
       title = formData.title,
-      artist = formData.artist,
       durationSec = durationSec,
       album = "",
-      signedTx = signedTx,
       purchasePrice = purchasePriceUnits,
       maxSupply = maxSupply,
+      useBackendCdrWriter = true,
+    )
+    if (finalizePrepareResponse.status !in 200..299) {
+      throw IllegalStateException(songPublishErrorMessageFromApi("Publish finalize prepare", finalizePrepareResponse))
+    }
+    val preparedFinalize = songPublishRequireFinalizePreparePayload("Publish finalize prepare", finalizePrepareResponse)
+
+    val cdrUploadResponse = songPublishFinalizeCdrUpload(
+      context = context,
+      jobId = jobId,
+      userAddress = userAddress,
+      title = formData.title,
+      album = "",
+      contentId = preparedFinalize.contentId,
+      cdr = preparedFinalize.cdr,
+    )
+    if (cdrUploadResponse.status !in 200..299) {
+      throw IllegalStateException(songPublishErrorMessageFromApi("Publish finalize CDR upload", cdrUploadResponse))
+    }
+    val uploadedCdr = songPublishRequireFinalizeCdrUploadPayload("Publish finalize CDR upload", cdrUploadResponse)
+
+    val signedTx = runCatching {
+      songPublishBuildSignedPublishTx(
+        context = context,
+        coordinatorAddress = coordinatorAddress,
+        ownerAddress = userAddress,
+        title = formData.title,
+        album = "",
+        durationSec = durationSec,
+        coverRef = preparedFinalize.coverRef,
+        datasetOwner = preparedFinalize.datasetOwner,
+        pieceCid = preparedFinalize.pieceCid,
+        algo = preparedFinalize.algo,
+        visibility = preparedFinalize.visibility,
+        replaceIfActive = preparedFinalize.replaceIfActive,
+      )
+    }.getOrElse { err ->
+      throw IllegalStateException("Publish finalize signing failed: ${err.message ?: err.javaClass.simpleName}", err)
+    }
+
+    val finalizeSubmitRequest =
+      SongPublishFinalizeSubmitRequest(
+        title = formData.title.trim(),
+        album = "",
+        durationS = durationSec,
+        signedTx = signedTx.trim(),
+        contentId = preparedFinalize.contentId,
+        cdrVaultUuid = uploadedCdr.cdrVaultUuid,
+        pieceCid = preparedFinalize.pieceCid,
+        artifact = preparedFinalize.artifact,
+        stems = preparedFinalize.stems,
+        purchasePrice = purchasePriceUnits,
+        maxSupply = maxSupply,
+      )
+    val finalizeResponse = submitMusicPublishFinalizeWithRetry(
+      context = context,
+      jobId = jobId,
+      userAddress = userAddress,
+      request = finalizeSubmitRequest,
     )
     if (finalizeResponse.status !in 200..299) {
-      if (finalizeResponse.status == 404) {
-        throw IllegalStateException(
-          "Finalize endpoint not found. Backend is outdated; deploy latest api-core.",
-        )
-      }
-      throw IllegalStateException(songPublishErrorMessageFromApi("Publish finalize", finalizeResponse))
+      throw IllegalStateException(songPublishErrorMessageFromApi("Publish finalize submit", finalizeResponse))
     }
-    val finalizeJob = songPublishRequireJobObject("Publish finalize", finalizeResponse)
+    if (songPublishIsPendingFinalizeResponse(finalizeResponse)) {
+      throw IllegalStateException("Publish finalize submit is still pending. Retry in a moment.")
+    }
+    val finalizeJob = songPublishRequireJobObject("Publish finalize submit", finalizeResponse)
     val finalizedStatus = finalizeJob.optString("status", "").trim()
     if (finalizedStatus != "registered") {
       throw IllegalStateException("Publish finalize did not complete (status=$finalizedStatus)")
@@ -687,7 +714,7 @@ object SongPublishService {
       maxCoverBytes = MAX_COVER_BYTES,
     )
 
-    val canonicalCoverRef = stagedCoverRef
+    val canonicalCoverRef = preparedFinalize.coverRef
 
     val result = PublishResult(
       jobId = jobId,
@@ -713,7 +740,7 @@ object SongPublishService {
         RecentlyPublishedSongsStore.record(
           context = context,
           title = formData.title,
-          artist = formData.artist,
+          artist = formData.publisherLabel,
           audioCid = result.stagedAudioUrl ?: result.stagedAudioId,
           coverCid = result.coverCid,
         )
@@ -725,6 +752,38 @@ object SongPublishService {
     }
 
     return result
+  }
+
+  private suspend fun submitMusicPublishFinalizeWithRetry(
+    context: Context,
+    jobId: String,
+    userAddress: String,
+    request: SongPublishFinalizeSubmitRequest,
+  ): SongPublishApiResponse {
+    var response =
+      songPublishFinalizeSubmitMusicPublish(
+        context = context,
+        jobId = jobId,
+        userAddress = userAddress,
+        request = request,
+      )
+    if (!songPublishIsPendingFinalizeResponse(response)) {
+      return response
+    }
+    repeat(FINALIZE_PENDING_MAX_RETRIES) {
+      delay(FINALIZE_PENDING_RETRY_DELAY_MS)
+      response =
+        songPublishFinalizeSubmitMusicPublish(
+          context = context,
+          jobId = jobId,
+          userAddress = userAddress,
+          request = request,
+        )
+      if (!songPublishIsPendingFinalizeResponse(response)) {
+        return response
+      }
+    }
+    return response
   }
 
   private suspend fun submitPreparedStoryIntentIfNeeded(

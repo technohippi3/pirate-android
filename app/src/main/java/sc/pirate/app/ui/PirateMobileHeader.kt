@@ -37,7 +37,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import coil.compose.AsyncImage
 import sc.pirate.app.auth.PirateAuthUiState
 import sc.pirate.app.resolveProfileIdentityWithRetry
 import sc.pirate.app.util.resolveAvatarUrl
@@ -121,31 +120,19 @@ fun PirateMobileHeader(
           val fg = if (isAuthenticated) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
           val displayAvatarUri = avatarUri?.trim()?.takeIf { it.isNotBlank() } ?: resolvedAvatarUri
           val displayName = primaryName?.trim()?.takeIf { it.isNotBlank() } ?: resolvedName
-          val avatarUrl = resolveAvatarUrl(displayAvatarUri)
-          if (!avatarUrl.isNullOrBlank()) {
-            AsyncImage(
-              model = avatarUrl,
-              contentDescription = "Avatar",
-              modifier = Modifier.size(36.dp).clip(CircleShape),
-              contentScale = ContentScale.Crop,
-            )
-          } else {
-            val fallbackInitial = when {
-              !displayName.isNullOrBlank() -> displayName.take(1)
-              !activeAddress.isNullOrBlank() -> activeAddress.take(2).removePrefix("0x").ifEmpty { "?" }
-              else -> "P"
-            }.uppercase()
-            Surface(
-              modifier = Modifier.size(36.dp),
-              shape = CircleShape,
-              color = bg,
-              border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            ) {
-              Box(contentAlignment = Alignment.Center) {
-                Text(fallbackInitial, color = fg, fontWeight = FontWeight.Bold)
-              }
-            }
-          }
+          val fallbackInitial = when {
+            !displayName.isNullOrBlank() -> displayName.take(1)
+            !activeAddress.isNullOrBlank() -> activeAddress.take(2).removePrefix("0x").ifEmpty { "?" }
+            else -> "P"
+          }.uppercase()
+          PirateAvatarBadge(
+            avatarUri = displayAvatarUri,
+            fallbackLabel = fallbackInitial,
+            size = 36.dp,
+            shape = CircleShape,
+            containerColor = bg,
+            contentColor = fg,
+          )
         }
       }
 
@@ -173,11 +160,14 @@ fun PirateMobileHeader(
           } else {
             val avatarUrl = resolveAvatarUrl(centerAvatarUri)
             if (!avatarUrl.isNullOrBlank()) {
-              AsyncImage(
-                model = avatarUrl,
+              PirateAvatarBadge(
+                avatarUri = centerAvatarUri,
+                fallbackLabel = centerDisplayName.take(1).ifBlank { "?" }.uppercase(),
+                size = 24.dp,
+                shape = CircleShape,
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
                 contentDescription = centerDisplayName,
-                modifier = Modifier.size(24.dp).clip(CircleShape),
-                contentScale = ContentScale.Crop,
               )
             } else {
               Surface(

@@ -409,7 +409,9 @@ internal object PrivyRelayClient {
     payload: JSONObject,
   ): String {
     val debugId = UUID.randomUUID().toString().substring(0, 8)
-    val authorizationSignature = buildRelayAuthorizationSignature(session, payload)
+    // Mobile already requires a live Privy session token before it reaches this path.
+    // Prefer the simpler session-auth flow and avoid triggering extra wallet/browser auth.
+    val authorizationSignature: String? = null
     if (authorizationSignature != null) {
       payload.put("authorizationSignature", authorizationSignature)
     }

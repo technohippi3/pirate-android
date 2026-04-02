@@ -25,6 +25,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import sc.pirate.app.ui.PirateIconButton
+import sc.pirate.app.ui.PirateAvatarBadge
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -41,10 +42,8 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,14 +65,12 @@ import com.adamglin.phosphoricons.regular.*
 import sc.pirate.app.ViewerContentLocaleResolver
 import sc.pirate.app.identity.SelfVerificationService
 import sc.pirate.app.music.SongPurchaseApi
-import coil.compose.AsyncImage
 import sc.pirate.app.learn.StudyProgressApi
 import sc.pirate.app.music.SongPublishService
 import sc.pirate.app.music.ui.SongPurchaseSheet
 import sc.pirate.app.player.PlayerController
 import sc.pirate.app.post.PostTxRepository
 import sc.pirate.app.song.SongArtistApi
-import sc.pirate.app.util.resolveAvatarUrl
 import java.util.Locale
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -925,37 +922,21 @@ fun HomeFeedScreen(
       PirateIconButton(
         onClick = onOpenDrawer,
       ) {
-        val avatarUrl = resolveAvatarUrl(avatarUri)
-        if (!avatarUrl.isNullOrBlank()) {
-          AsyncImage(
-            model = avatarUrl,
-            contentDescription = "Avatar",
-            modifier = Modifier.size(36.dp).clip(CircleShape),
-            contentScale = ContentScale.Crop,
-          )
-        } else {
-          val bg = if (isAuthenticated) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
-          val fg = if (isAuthenticated) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
-          val fallbackInitial = when {
-            !primaryName.isNullOrBlank() -> primaryName.take(1)
-            !ownerAddress.isNullOrBlank() -> ownerAddress.take(2).removePrefix("0x").ifEmpty { "?" }
-            else -> "P"
-          }.uppercase()
-          Surface(
-            modifier = Modifier.size(36.dp),
-            shape = CircleShape,
-            color = bg,
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-          ) {
-            Box(contentAlignment = Alignment.Center) {
-              Text(
-                text = fallbackInitial,
-                color = fg,
-                fontWeight = FontWeight.Bold,
-              )
-            }
-          }
-        }
+        val bg = if (isAuthenticated) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+        val fg = if (isAuthenticated) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+        val fallbackInitial = when {
+          !primaryName.isNullOrBlank() -> primaryName.take(1)
+          !ownerAddress.isNullOrBlank() -> ownerAddress.take(2).removePrefix("0x").ifEmpty { "?" }
+          else -> "P"
+        }.uppercase()
+        PirateAvatarBadge(
+          avatarUri = avatarUri,
+          fallbackLabel = fallbackInitial,
+          size = 36.dp,
+          shape = CircleShape,
+          containerColor = bg,
+          contentColor = fg,
+        )
       }
 
       PirateIconButton(onClick = onOpenPost) {
