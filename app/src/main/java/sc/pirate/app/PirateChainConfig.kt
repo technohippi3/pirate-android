@@ -19,7 +19,7 @@ object PirateChainConfig {
   const val STORY_AENEID_RPC_URL = "https://aeneid.storyrpc.io"
   const val STORY_AENEID_EXPLORER_URL = "https://aeneid.storyscan.io"
   const val STORY_STABLE_TOKEN = "0xF2104833d386a2734a4eB3B8ad6FC6812F29E38E"
-  const val STORY_SCROBBLE_V4 = "0x2D8182d5c3362B0c126dFeb987dBc7bf3E1072CA"
+  const val STORY_SCROBBLE_V4 = "0x820545E01C7a0e5fA160f5baC00bB408a98F1801"
   const val STORY_PLAYLIST_V1 = "0xf4ac980e0366f1b0ed36b5747fa04e32199b66d9"
   const val STORY_FEED_V2 = "0x7208221F61463D7f430E5bCe9935F0c756D4818F"
   const val STORY_STUDY_SET_REGISTRY = "0xb8ddA18c4163c5B313e7739dd8Ae9390D85fc161"
@@ -30,7 +30,7 @@ object PirateChainConfig {
     "https://api.goldsky.com/api/public/project_cmjjtjqpvtip401u87vcp20wd/subgraphs"
 
   const val STORY_MUSIC_SOCIAL_SUBGRAPH_URL =
-    "$GOLDSKY_SUBGRAPH_BASE_URL/music-social-story-aeneid/20260330-175305/gn"
+    "$GOLDSKY_SUBGRAPH_BASE_URL/music-social-story-aeneid/20260402-201902/gn"
   const val BASE_PROFILES_SUBGRAPH_URL =
     "$GOLDSKY_SUBGRAPH_BASE_URL/profiles-base-sepolia/20260328-185319/gn"
   const val STORY_PLAYLISTS_SUBGRAPH_URL =

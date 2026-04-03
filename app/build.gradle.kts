@@ -52,7 +52,7 @@ android {
 
     val subgraphMusicSocialUrl =
       projectStringProperty("SUBGRAPH_MUSIC_SOCIAL_URL")
-        ?: goldskySubgraphUrl("music-social-story-aeneid", "20260330-175305")
+        ?: goldskySubgraphUrl("music-social-story-aeneid", "20260402-201902")
     buildConfigField("String", "SUBGRAPH_MUSIC_SOCIAL_URL", "\"$subgraphMusicSocialUrl\"")
 
     val subgraphProfilesUrl =
@@ -100,7 +100,7 @@ android {
     manifestPlaceholders["privyRedirectScheme"] = privyRedirectScheme
 
     val storyPublishCoordinator = projectStringProperty("STORY_PUBLISH_COORDINATOR")
-      ?: "0xbeca8ec21492a3bbdda69f2952734597ad362d18"
+      ?: "0x3CA30B2d853E67C97a5ca2cC15a1791548C3dD7c"
     buildConfigField("String", "STORY_PUBLISH_COORDINATOR", "\"$storyPublishCoordinator\"")
 
     val storyCanonicalLyricsRegistry = projectStringProperty("STORY_CANONICAL_LYRICS_REGISTRY")
